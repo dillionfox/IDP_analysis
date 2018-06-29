@@ -12,7 +12,7 @@ This code contains many functions that may be useful for characterizing
 intrinsically disordered proteins. Many functions piggyback off of
 MDTraj. This code has only been tested with Python 2.7. 
 
-*A major update was just released pushed to github and this new version
+*A major update was just pushed to github and this new version
 likely contains many bugs. The example at the bottom of "sa.py" should
 work provided you're running Python 2.7, have correctly formatted input
 files, and all of the dependencies.*
