@@ -7,6 +7,7 @@ from IDP_analysis import pca
 from IDP_analysis import kmeans_clusters
 from IDP_analysis import sa_core
 from IDP_analysis import rama
+from IDP_analysis import traj
 
 """
 			################################
