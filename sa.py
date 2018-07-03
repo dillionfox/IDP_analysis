@@ -1,13 +1,12 @@
 import numpy as np
 import mdtraj as md
 import os
-from matplotlib.colors import LogNorm
 from IDP_analysis import polymer
 from IDP_analysis import pca
 from IDP_analysis import kmeans_clusters
 from IDP_analysis import sa_core
 from IDP_analysis import rama
-from IDP_analysis import traj
+from IDP_analysis import sa_traj
 
 """
 			################################
@@ -201,7 +200,7 @@ class SA:
 
 		# make sure all calculations supplied are valid
 		for c in self.calcs:
-			if c not in ['Rg', 'SASA', 'EED', 'Asph', 'rama', 'cmaps', 'PCA', 'gcmaps','XRg','SS', 'chain', 'score','flory', 'centroids', 'Gyr', 'surface_contacts']:
+			if c not in ['Rg', 'SASA', 'EED', 'Asph', 'rama', 'cmaps', 'PCA', 'gcmaps','XRg','SS', 'chain', 'score','flory', 'centroids', 'Gyr', 'surface_contacts', 'rmsd']:
 				print c, "is not a known calculation. Exiting..."
 				exit()
 
@@ -375,9 +374,20 @@ class SA:
 				print "Loading Trajectory"
 				#---Run Calculations *DCD*
 				if self.trajname.split('.')[-1] == 'dcd':
-					dcd = md.load_dcd(self.trajname, self.top)
-					for struc in dcd:
-						self.calculations(struc)
+					traj = md.load_dcd(self.trajname, self.top)
+					for struc in traj:
+						prot = struc.atom_slice(struc.topology.select('protein'))[0]
+						self.calculations(prot)
+
+				#---Run Calculations *XTC*
+				elif self.trajname.split('.')[-1] == 'xtc':
+					traj = md.load_xtc(self.trajname, top=self.top)
+					print "traj loaded", self.trajname, self.top
+					sa_traj.calcs(traj,self.calcs,self.name_mod,self.outdir)
+					print "numframes", traj
+					for struc in traj:
+						prot = struc.atom_slice(struc.topology.select('protein'))[0]
+						self.calculations(prot)
 
 				#                    *PDB*
 				elif self.trajname.split('.')[-1] == 'txt':
@@ -489,10 +499,10 @@ if __name__ == "__main__":
 		else:
 			USAGE()
 	elif len(sys.argv) == 3:
-		if sys.argv[1].split('.')[1] == 'dcd' and sys.argv[2].split('.')[1] == 'pdb':
-			dcd = sys.argv[1]
-			pdb = sys.argv[2]
-			sa = SA(dcd,pdb,'test','test_traj/',[])
+		if sys.argv[1].split('.')[1] in ['dcd', 'xtc'] and sys.argv[2].split('.')[1] in ['pdb', 'gro']:
+			traj = sys.argv[1]
+			top = sys.argv[2]
+			sa = SA(traj,top,'test','test_traj/',['Rg'])
 		else:
 			USAGE()
 	else:
