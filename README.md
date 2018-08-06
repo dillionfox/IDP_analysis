@@ -36,5 +36,10 @@ So, I mainly use this platform to:
 	3. Analyze the surface chemistry of the protein using the
 	"surface contacts" function
 
+I included several scripts that demonstrate how I use the code in my
+research (located in the *example_wrappers* directory). I believe
+these examples are the easiest way to adapt a project to use this 
+platform.
+
 There are several functions that I no longer use and therefore may not work.
 I am actively working on re-writing and optimizing the code (6/2018)
