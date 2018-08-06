@@ -7,6 +7,7 @@ from IDP_analysis import kmeans_clusters
 from IDP_analysis import sa_core
 from IDP_analysis import rama
 from IDP_analysis import sa_traj
+from IDP_analysis import mem
 
 """
 			################################
@@ -82,6 +83,9 @@ class SA:
 		self.ros_frames = -1		# number of "top score" structures to look at. defined with class call (not internal to class)
 		self.OVERWRITE = 'n'		# overwrite old files? defined with class call
 		self.score_file = ''		# path to Rosetta score file.
+		self.first_frame = 0            # 
+		self.last_frame = -1            # NEEDS TO BE FIXED!!
+		self.sequence = ''		# Required for some calcs
 
 	def analyze_clusters(self):
 		"""
@@ -200,7 +204,7 @@ class SA:
 
 		# make sure all calculations supplied are valid
 		for c in self.calcs:
-			if c not in ['Rg', 'SASA', 'EED', 'Asph', 'rama', 'cmaps', 'PCA', 'gcmaps','XRg','SS', 'chain', 'score','flory', 'centroids', 'Gyr', 'surface_contacts', 'rmsd']:
+			if c not in ['Rg', 'SASA', 'EED', 'Asph', 'rama', 'cmaps', 'PCA', 'gcmaps','XRg','SS', 'chain', 'score','flory', 'centroids', 'Gyr', 'surface_contacts', 'rmsd', 'probe']:
 				print c, "is not a known calculation. Exiting..."
 				exit()
 
@@ -372,29 +376,25 @@ class SA:
 		if self.mode == 'default':
 			if LOAD == True:
 				print "Loading Trajectory"
-				#---Run Calculations *DCD*
-				if self.trajname.split('.')[-1] == 'dcd':
-					traj = md.load_dcd(self.trajname, self.top)
+				traj_ext = self.trajname.split('.')[-1]
+				if traj_ext in ['dcd', 'xtc']:
+					if traj_ext == 'dcd':
+						traj = md.load_dcd(self.trajname, self.top)
+					elif traj_ext == 'xtc':
+						traj = md.load_xtc(self.trajname, top=self.top)
+					if self.last_frame != -1:
+						traj = traj[self.first_frame:self.last_frame]
 					for struc in traj:
 						prot = struc.atom_slice(struc.topology.select('protein'))[0]
 						self.calculations(prot)
-
-				#---Run Calculations *XTC*
-				elif self.trajname.split('.')[-1] == 'xtc':
-					traj = md.load_xtc(self.trajname, top=self.top)
-					print "traj loaded", self.trajname, self.top
-					sa_traj.calcs(traj,self.calcs,self.name_mod,self.outdir)
-					print "numframes", traj
-					for struc in traj:
-						prot = struc.atom_slice(struc.topology.select('protein'))[0]
-						self.calculations(prot)
-
-				#                    *PDB*
-				elif self.trajname.split('.')[-1] == 'txt':
+				# Or, if given a list of PDB's
+				elif traj_ext == 'txt':
 					for PDB in open(self.trajname):
 						struc = md.load(PDB.split("\n")[0])
 						self.calculations(struc)
 					self.top = PDB.split("\n")[0]
+				else:
+					print "file type", traj_ext, "not recognized"
 
 				#---Write data
 				self.write_data()
@@ -478,6 +478,15 @@ class SA:
 			self.cluster_centroids()
 		if 'rama' in self.calcs:
 			rama.rama(self.dihedrals,self.outdir,self.name_mod)
+		if 'probe' in self.calcs:
+			skip_frames = 1
+			first_frame = 0
+			last_frame = 'last'
+			nthreads = 1
+			cutoff = 5
+			probe_radius = 1.0
+			self.sequence = ['R','Q','M','N','F','P','E','R','S','M','D','M','S','N','L','Q','M','D','M','Q','G','R','W','M','D','M','Q','G','R','Y','T','N','P','F','N']
+			mem.interface_probe(PDB,XTC,skip_frames,first_frame,last_frame,nthreads,cutoff,probe_radius,sequence)
 
 		end = timer()
 		print "Total execution time:", end-start
