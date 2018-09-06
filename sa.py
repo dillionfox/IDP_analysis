@@ -86,6 +86,7 @@ class SA:
 		self.first_frame = 0            # 
 		self.last_frame = -1            # NEEDS TO BE FIXED!!
 		self.sequence = ''		# Required for some calcs
+		self.MASA = []			# Membrane accessible surface area
 
 	def analyze_clusters(self):
 		"""
@@ -204,7 +205,9 @@ class SA:
 
 		# make sure all calculations supplied are valid
 		for c in self.calcs:
-			if c not in ['Rg', 'SASA', 'EED', 'Asph', 'rama', 'cmaps', 'PCA', 'gcmaps','XRg','SS', 'chain', 'score','flory', 'centroids', 'Gyr', 'surface_contacts', 'rmsd', 'probe']:
+			if c not in ['Rg', 'SASA', 'EED', 'Asph', 'rama', 'cmaps', 'PCA', 'gcmaps',\
+					'XRg','SS', 'chain', 'score','flory', 'centroids', 'Gyr', \
+					'surface_contacts', 'rmsd', 'probe', 'MASA']:
 				print c, "is not a known calculation. Exiting..."
 				exit()
 
@@ -343,6 +346,15 @@ class SA:
 			self.scmaps.append(sa_core.surface_contacts(struc,SASA))
 		return None
 
+	def membrane_calcs(self,struc):
+		"""
+		Separate function for membrane calcs, which require all atoms, not just protein
+
+		"""
+		if 'MASA' in self.calcs:
+			self.MASA.append(mem.MASA(struc))
+		return None
+
 	def run(self,mode='default'):
 	        """
 		Runs and handles all function calls. All data is stored in class object.
@@ -377,26 +389,43 @@ class SA:
 			if LOAD == True:
 				print "Loading Trajectory"
 				traj_ext = self.trajname.split('.')[-1]
-				if traj_ext in ['dcd', 'xtc']:
+				if traj_ext in ['dcd', 'xtc', 'txt']:
 					if traj_ext == 'dcd':
 						traj = md.load_dcd(self.trajname, self.top)
 					elif traj_ext == 'xtc':
 						traj = md.load_xtc(self.trajname, top=self.top)
+					elif traj_ext == 'txt':
+						traj = open(self.trajname)
 					if self.last_frame != -1:
 						traj = traj[self.first_frame:self.last_frame]
+					# some calculations must be done frame by frame
 					for struc in traj:
+						print struc
+						if traj_ext == 'txt': struc = md.load(struc.split("\n")[0])
 						prot = struc.atom_slice(struc.topology.select('protein'))[0]
 						self.calculations(prot)
-				# Or, if given a list of PDB's
-				elif traj_ext == 'txt':
-					for PDB in open(self.trajname):
-						struc = md.load(PDB.split("\n")[0])
-						self.calculations(struc)
-					self.top = PDB.split("\n")[0]
-				else:
-					print "file type", traj_ext, "not recognized"
+						self.membrane_calcs(struc)
+					# others can be done all at once
+					if 'probe' in self.calcs:
+						skip_frames = 1
+						first_frame = 0
+						last_frame = 'last'
+						nthreads = 1
+						cutoff = 5
+						probe_radius = 1.0
+						self.sequence = ['R']
+						mem.interface_probe(self.top,self.trajname,skip_frames,first_frame,last_frame,nthreads,cutoff,probe_radius,self.sequence)
+					
+				#### Or, if given a list of PDB's
+				###elif traj_ext == 'txt':
+				###	for PDB in open(self.trajname):
+				###		struc = md.load(PDB.split("\n")[0])
+				###		self.calculations(struc)
+				###	self.top = PDB.split("\n")[0]
+				###else:
+				###	print "file type", traj_ext, "not recognized"
 
-				#---Write data
+				####---Write data
 				self.write_data()
 
 		#---Code can be run in special mode where it references a Rosetta score file and only computes statistics on top N structures
@@ -478,15 +507,6 @@ class SA:
 			self.cluster_centroids()
 		if 'rama' in self.calcs:
 			rama.rama(self.dihedrals,self.outdir,self.name_mod)
-		if 'probe' in self.calcs:
-			skip_frames = 1
-			first_frame = 0
-			last_frame = 'last'
-			nthreads = 1
-			cutoff = 5
-			probe_radius = 1.0
-			self.sequence = ['R','Q','M','N','F','P','E','R','S','M','D','M','S','N','L','Q','M','D','M','Q','G','R','W','M','D','M','Q','G','R','Y','T','N','P','F','N']
-			mem.interface_probe(PDB,XTC,skip_frames,first_frame,last_frame,nthreads,cutoff,probe_radius,sequence)
 
 		end = timer()
 		print "Total execution time:", end-start
@@ -504,7 +524,7 @@ if __name__ == "__main__":
 	if len(sys.argv) == 2:
 		if sys.argv[1].split('.')[1] == 'txt':
 			PDB_list = sys.argv[1]
-			sa = SA(PDB_list,'','_test','analysis',['PCA'])
+			sa = SA(PDB_list,'','_test','test',['MASA'])
 		else:
 			USAGE()
 	elif len(sys.argv) == 3:
