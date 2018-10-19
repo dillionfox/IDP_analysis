@@ -3,7 +3,7 @@ import mdtraj as md
 import matplotlib as mpl
 font = {'family' : 'normal','weight' : 'normal','size'   : 15}
 mpl.rc('font', **font)
-mpl.use('Agg')
+#mpl.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 
@@ -21,6 +21,11 @@ compute_XRg(PDB): Rg
 scatterplot(X,Y,xlabel,ylabel,filename,outdir,name_mod): None
 
 """
+
+def get_seq(struc):
+	reslist = struc.atom_slice(struc.topology.select("protein and name CA"))[0].topology.to_dataframe()[0]['resName']
+	seq = [reslist[i] for i in range(len(reslist))]
+	return seq
 
 def gyration_tensor(coors):
 	"""

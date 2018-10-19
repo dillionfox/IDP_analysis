@@ -1,10 +1,10 @@
 #!/usr/bin/python
 import numpy as np
-import sys
-import MDAnalysis
+#import sys
+#import MDAnalysis
 import mdtraj as md
-import matplotlib
-matplotlib.use("Agg")
+#import matplotlib
+#matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 ### Protein/Lipid SASA ###
@@ -40,6 +40,126 @@ ATOMIC_RADII = {'H'   : 0.120, 'He'  : 0.140, 'Li'  : 0.076, 'Be' : 0.059,
                  'Uut' : 0.200, 'Fl'  : 0.200, 'Uup' : 0.200, 'Lv' : 0.200, 
                  'Uus' : 0.200, 'Uuo' : 0.200} 
 
+def plot_masa(l,sequence,name):
+	plt.clf()
+	flat_list = [item for sublist in l for item in sublist]
+
+	###
+
+	fig=plt.figure(1)
+	ax=fig.add_subplot(111)
+	fig.suptitle('Residue/Lipid Contacts')
+	ax.set_xlabel('Residue Number')
+	ax.set_ylabel('Number of Occurrences')
+
+	ax.set_xticks(np.arange(len(sequence)))
+	ax.set_xticklabels(sequence,fontSize=5)
+
+	plt.xlim(-1,len(sequence))
+
+	###
+
+	#plt.hist(flat_list,align='mid',rwidth=5)
+	hist, bins = np.histogram(flat_list, bins = range(0,len(sequence)))
+	plt.bar(bins[:-1], hist, width=1, edgecolor='k')
+	
+	plt.savefig(name+"_contacts.png")
+	return None
+
+def generate_sphere_points(n):
+	"""
+	generate coordinates on a sphere using the Golden Section Spiral algorithm
+
+	"""
+	points = np.zeros((n, 3))
+	inc = np.pi * (3 - np.sqrt(5))
+	offset = 2/float(n)
+	for k in range(int(n)):
+		y = k*offset - 1 + (offset/2)
+		r = np.sqrt(1 - y*y)
+		phi = k*inc
+		points[k, :] = [np.cos(phi) * r, y, np.sin(phi) * r]
+	return points
+
+def pbc_dist(r_i,r_j,pbc):
+	d = r_i - r_j
+	for q in range(3):
+		if abs(d[q]) > pbc[q]/2.0:
+			if d[q] > 0: d[q] -= pbc[q]
+			else: d[q] += pbc[q]
+	return d
+
+def get_residues(struc,sel):
+	sel_ind = struc.topology.select(sel)
+	sel = struc.atom_slice(sel_ind)
+	table, bonds = sel.topology.to_dataframe()
+	return table['serial'], table['resSeq'], table['resName']
+
+def MASA(struc,sel1 = "protein", sel2 = "resname DOPC or resname DOPS or resname POPC"):
+	"""
+	Compute Membrane Accessible Surface Area (MASA) of a protein
+	using an adapted Shrake-Rupley algorithm
+	sel1 = "protein and not (name =~ 'H.*')"
+
+	"""
+	# constants
+	n_sphere_point = 960 ; cutoff = 0.4 ; probe = 0 ; sphere_points = generate_sphere_points(n_sphere_point)
+	const = 4.0*np.pi/n_sphere_point ; surface = [] ; pbc = np.array(struc.unitcell_lengths)[0] ; prot_pts = []
+	indlist, reslist, rnlist = get_residues(struc,sel1)
+
+	# make selections
+	sel1_ind = struc.topology.select(sel1) ; sel2_ind = struc.topology.select(sel2)
+	sel1_ind = struc.topology.select(sel1) ; sel2_ind = struc.topology.select(sel2)
+	sel1_neighbors = md.compute_neighbors(struc,cutoff,sel2_ind,sel1_ind)[0]
+	sel2_neighbors = md.compute_neighbors(struc,cutoff,sel1_ind,sel2_ind)[0]
+	areas = np.zeros(len(sel1_ind)) ; first_atom = min(sel1_ind)
+
+	# iterate through sel1 atoms that are neighbors of sel2
+	for it,atom_i in enumerate(sel1_neighbors):
+		# select atom i
+		this_atom = struc.atom_slice(struc.topology.select('index '+str(atom_i)))[0]
+		# find neighbors of atom i from sel2
+		neighbor_indices = md.compute_neighbors(struc,cutoff,[atom_i],sel2_ind)[0]
+		# make mdtraj object containing neighbors
+		neighbor_slice = struc.atom_slice(neighbor_indices)
+		# store coordinates and element names of all neighbors
+		neighbor_xyz = neighbor_slice.xyz[0] ; neighbor_el = [neighbor_slice.topology.to_dataframe()[0]['element'][i] for i in range(neighbor_slice.n_atoms)]
+		# compute radius around atom i (including probe distance)
+		r_i = probe + ATOMIC_RADII[this_atom.topology.to_dataframe()[0]['element'][0]]
+		# define constants
+		n_accessible_points = 0 ; is_accessible = True
+		# iterate through each sphere point
+		for k in range(n_sphere_point):
+			# move the sphere point and adjust the radius
+			point_k = (sphere_points[k, :]*r_i + this_atom.xyz[0])[0]
+			# cycle through each "sel2" atom that's near sel_1 atom_i
+			for j in range(len(neighbor_indices)):
+				# define probe radius of sel2 atom_j		
+				r_j = probe + ATOMIC_RADII[neighbor_el[j]]
+				# measure distance between sel2 atom_j and sel1 test point k
+				d_jk = np.linalg.norm(pbc_dist(neighbor_xyz[j],point_k,pbc))
+				# if distance between atom_j and test point is smaller than atom_j radius, then it's NOT accessible
+				if d_jk > r_j: 
+					is_accessible = False
+				else: 
+					# save coordinates of protein atom
+					prot_pts.append(this_atom.xyz[0][0])
+					# save coordinates of surface atom
+					surface.append(point_k) 
+					# keep track of number of accessible points
+					n_accessible_points+=1
+					# if the test point is accessible to at least one point, then no need to count it twice
+					break
+			# until we find an accessible point, keep looking
+			if is_accessible == True: break
+		#areas[it] = const*n_accessible_points*r_i*r_i
+		areas[atom_i-first_atom] = const*n_accessible_points*r_i*r_i
+	ureslist = sorted(set(reslist)) ; resareas = np.zeros(len(ureslist)) ; first_res = min(ureslist)
+	for ai,area in enumerate(areas): 
+		if area > 0: resareas[reslist[ai]-first_res] += area
+	#write_pdb(surface,"test_points.pdb") ; write_pdb(prot_pts,"neigh_points.pdb")
+	return np.where(np.array(resareas) > 0)[0]
+
 def write_pdb(coors,pdbname):
 	"""
 	generic pdb writing function for "test points"
@@ -69,93 +189,6 @@ def write_pdb(coors,pdbname):
 	outfile.close()
 	return 0
 
-def generate_sphere_points(n):
-	"""
-	generate coordinates on a sphere using the Golden Section Spiral algorithm
-
-	"""
-	points = np.zeros((n, 3))
-	inc = np.pi * (3 - np.sqrt(5))
-	offset = 2/float(n)
-	for k in range(int(n)):
-		y = k*offset - 1 + (offset/2)
-		r = np.sqrt(1 - y*y)
-		phi = k*inc
-		points[k, :] = [np.cos(phi) * r, y, np.sin(phi) * r]
-	return points
-
-def pbc_dist(r_i,r_j,pbc):
-	d = r_i - r_j
-	for q in range(3):
-		if abs(d[q]) > pbc[q]/2.0:
-			if d[q] > 0: d[q] -= pbc[q]
-			else: d[q] += pbc[q]
-	return d
-
-def MASA(struc,sel1 = "protein and (name =~ 'H.*')", sel2 = "resname DOPC or resname DOPS or resname POPC"):
-	"""
-	Compute Membrane Accessible Surface Area (MASA) of a protein
-	using an adapted Shrake-Rupley algorithm
-
-	"""
-	# constants
-	n_sphere_point = 960 ; cutoff = 0.4 ; probe = 0.25 ; sphere_points = generate_sphere_points(n_sphere_point)
-	const = 4.0*np.pi/n_sphere_point ; surface = [] ; pbc = np.array(struc.unitcell_lengths)[0] ; prot_pts = []
-
-	# make selections
-	sel1_ind = struc.topology.select(sel1) ; sel2_ind = struc.topology.select(sel2)
-	sel1_neighbors = md.compute_neighbors(struc,cutoff,sel2_ind,sel1_ind)[0]
-	sel2_neighbors = md.compute_neighbors(struc,cutoff,sel1_ind,sel2_ind)[0]
-	areas = np.zeros(len(sel1_ind))
-
-	print sel1_ind
-	print "2", sel1_neighbors
-
-	# iterate through sel1 atoms that are neighbors of sel2
-	for it,atom_i in enumerate(sel1_neighbors):
-		# select atom i
-		this_atom = struc.atom_slice(struc.topology.select('index '+str(atom_i)))[0]
-		# find neighbors of atom i from sel2
-		neighbor_indices = md.compute_neighbors(struc,cutoff,[atom_i],sel2_ind)[0]
-		# make mdtraj object containing neighbors
-		neighbor_slice = struc.atom_slice(neighbor_indices)
-		# store coordinates and element names of all neighbors
-		neighbor_xyz = neighbor_slice.xyz[0] ; neighbor_el = [neighbor_slice.topology.to_dataframe()[0]['element'][i] for i in range(neighbor_slice.n_atoms)]
-		# find radius around atom i (including probe distance)
-		r_i = probe + ATOMIC_RADII[this_atom.topology.to_dataframe()[0]['element'][0]]
-		# define constants
-		n_accessible_points = 0 ; is_accessible = True
-		# iterate through each sphere point
-		for k in range(n_sphere_point):
-			# move the sphere point and adjust the radius
-			point_k = (sphere_points[k, :]*r_i + this_atom.xyz[0])[0]
-			# cycle through each "sel2" atom that's near sel_1 atom_i
-			for j in range(len(neighbor_indices)):
-				# define probe radius of sel2 atom_j		
-				r_j = probe + ATOMIC_RADII[neighbor_el[j]]
-				# measure distance between sel2 atom_j and sel1 test point k
-				d_jk = np.linalg.norm(pbc_dist(neighbor_xyz[j],point_k,pbc))
-				# if distance between atom_j and test point is smaller than atom_j radius, then it's NOT accessible
-				if d_jk > r_j: 
-					is_accessible = False
-				else: 
-					# save coordinates of protein atom
-					prot_pts.append(this_atom.xyz[0][0])
-					# save coordinates of surface atom
-					surface.append(point_k) 
-					# keep track of number of accessible points
-					n_accessible_points+=1
-					# if the test point is accessible to at least one point, then no need to count it twice
-					break
-			# until we find an accessible point, keep looking
-			if is_accessible == True: break
-		areas[it] = const*n_accessible_points*r_i*r_i
-
-	print "total area =", np.sum(areas)
-	print areas
-	write_pdb(surface,"test_points.pdb")
-	write_pdb(prot_pts,"neigh_points.pdb")
-	return areas, surface
 
 ### interface probe ###
 vec_to_int = {'x':0, 'y':1, 'z':2}
