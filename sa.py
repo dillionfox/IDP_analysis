@@ -61,6 +61,8 @@ class SA:
 
 		"""
 		self.trajname = trajname	# store name of trajectory
+		self.nframes = -1		# number of frames in trajectory
+		self.nres = -1			# number of residues in structure
 		self.top = top			# store topology (pdb, only needed if traj is compressed)
 		self.name_mod = name_mod	# several functions are reused, so this name differentiates them
 		self.EED = [] 			# end-to-end distance
@@ -93,13 +95,14 @@ class SA:
 	##################################################################
 	### Load basic information about the structures being analyzed ###
 	##################################################################
-	def struc_info(self,struc):
+	def struc_info(self,struc,nframes):
 		"""
 		Extract basic information about the structure, i.e. sequence, number of residues
 
 		"""
-		self.seq = sa_core.get_seq(md.load(self.top))
+		self.seq = sa_core.get_seq(struc)
 		self.nres = struc.n_residues
+		self.nframes = nframes
 		return None
 
 	def load_scores(self,fil): 
@@ -260,6 +263,11 @@ class SA:
 			for c in ['SASA']:
 				if c not in self.calcs:
 					self.calcs.append(c)
+		#---Contacts by type requires contacts maps to be computed first
+		if 'contact_types' in self.calcs:
+			for c in ['cmaps']:
+				if c not in self.calcs:
+					self.calcs.append(c)
 		#---PCA requires the following calculations. Make sure they're there
 		elif 'PCA' in self.calcs:
 			for c in ['Gyr', 'Rg', 'SASA', 'EED', 'Asph']:
@@ -274,11 +282,14 @@ class SA:
 		for c in self.calcs:
 			if c not in ['Rg', 'SASA', 'EED', 'Asph', 'rama', 'cmaps', 'PCA', 'gcmaps',\
 					'XRg','SS', 'chain', 'score','flory', 'centroids', 'Gyr', \
-					'surface_contacts', 'rmsd', 'probe', 'MASA', 'calibur', 'diffusion']:
+					'surface_contacts', 'rmsd', 'probe', 'MASA', 'calibur', \
+					'diffusion', 'contact_types']:
 				print c, "is not a known calculation. Exiting..."
 				exit()
 		#---Diffusion code requires some input
 		if 'diffusion' in self.calcs:
+			print "reminder: If you're computing the diffusion coefficient from a replica exchange simulation,"
+			print "then you must use a continuous trajectory"
 			self.R_list = np.array([0, 0.25, 0.5, 0.75, 1.0, 1.25,1.5,1.75])	
 			# code is not currently set up to compute diffusion from pdbs. Not hard, just not doing it right now.
 			if traj_ext == 'txt':
@@ -424,7 +435,8 @@ class SA:
 			SASA = md.shrake_rupley(struc)
 			self.SASA.append(SASA.sum(axis=1)[0])
 		if 'cmaps' in self.calcs:
-			dist = self.contact_maps(CA_coors)
+			dist = sa_core.contact_maps(CA_coors)
+			self.cmaps.append(dist)
 		if 'gcmaps' in self.calcs:
 			self.gcmaps.append(sa_core.gremlin_contact_maps(dist))
 		if 'SS' in self.calcs:
@@ -448,12 +460,13 @@ class SA:
 			self.MASA.append(mem.MASA(struc))
 		return None
 
-	def diffusion(self,struc,struc_0,fr,N):
+	def diffusion(self,fr):
 		"""
 		Separate function for diffusion calcs which require protein+water
 
 		"""
 		if 'diffusion' in self.calcs:
+			struc = traj[fr_] ; struc_0 = traj[fr_-1] ; N = len(traj)
 			# only start on second frame
 			if self.diff_data == []:
                         	self.diff_data = np.zeros((N-1,len(self.R_list)))		
@@ -486,7 +499,7 @@ class SA:
 
 		"""
 		if 'cmaps' in self.calcs:
-			try: sa_core.av_cmaps(self.cmaps,self.nres,self.seq,self.outdir,self.name_mod,"NULL")
+			try: av_cmaps = sa_core.av_cmaps(self.cmaps,self.nres,self.seq,self.outdir,self.name_mod,"NULL")
 			except: print "CMAPS didnt work"
 		if 'gcmaps' in self.calcs:
 			try: sa_core.av_cmaps(self.gcmaps,self.nres,self.seq,self.outdir,self.name_mod,"gremlin")
@@ -521,6 +534,8 @@ class SA:
 			D = np.mean(np.array(self.diff_data).T,axis=1)[1:]
 			R = [(self.R_list[i]+self.R_list[i-1])/2. for i in range(1,len(self.R_list))]
 			diff.plot_shells(R,D,self.outdir,self.name_mod)
+		if 'contact_types' in self.calcs:
+			sa_core.contact_types(av_cmaps,self.seq,self.nframes)
 		return None
 
 	#####################
@@ -564,13 +579,19 @@ class SA:
 				print "Loading Trajectory"
 				#---Right now the code expects either a list of pdbs (.txt), a .dcd, or a .xtc
 				if traj_ext in ['dcd', 'xtc', 'txt']:
-					#---XTCs and DCDs will be loaded all at once
+					#---XTCs and DCDs will be loaded all at once. Extract basic info about structure
 					if traj_ext == 'dcd':
 						traj = md.load_dcd(self.trajname, self.top)
+						self.struc_info(traj[0],len(traj))
 					elif traj_ext == 'xtc':
 						traj = md.load_xtc(self.trajname, top=self.top)
+						self.struc_info(traj[0],len(traj))
 					#---Load names of PDBs to be loaded
 					elif traj_ext == 'txt':
+						with open(self.trajname) as t:
+							self.top = t.readline().rstrip()
+							nlines = sum(1 for line in t)
+						self.struc_info(md.load(self.top),nlines)
 						traj = open(self.trajname)
 					#---Only load the necessary frames
 					if self.last_frame != -1:
@@ -586,7 +607,7 @@ class SA:
 						#---Run calculations requiring protein, lipid, and water coordinates
 						self.membrane_calcs(struc)
 						#---Special case: protein and water coordinates
-						self.diffusion(traj[fr_],traj[fr_-1],fr_,len(traj))
+						self.diffusion(fr_)
 					#---Calculations done on trajectory all at once
 					self.traj_calcs(traj)
 				#---Write data

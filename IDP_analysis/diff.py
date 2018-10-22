@@ -10,7 +10,7 @@ def plot_shells(R,D,outdir,name_mod):
 	Very basic plotting function
 
 	"""
-	print " ~!~ DIFFUSION ~!~", R, D
+	plt.clf()
 	plt.xlabel('nm')
 	plt.ylabel('Diffusion Constant')
 	plt.plot(R,D)

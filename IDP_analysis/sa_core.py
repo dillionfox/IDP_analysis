@@ -22,6 +22,14 @@ scatterplot(X,Y,xlabel,ylabel,filename,outdir,name_mod): None
 
 """
 
+global hydrophobic ; hydrophobic = np.array(['GLY', 'ALA', 'VAL', 'ILE', 'LEU', 'MET', 'PHE', 'TYR', 'TRP', 'PRO', 'CYS'])
+global hydrophilic ; hydrophilic = np.array(['SER', 'THR', 'ASN', 'GLN', 'HIS'])
+global poscharge   ; poscharge =   np.array(['ARG', 'LYS'])
+global negcharge   ; negcharge =   np.array(['ASP', 'GLU'])
+global aromatic    ; aromatic =    np.array(['TYR','PHE','TRP'])
+global methionine  ; methionine =  np.array(['MET'])
+
+
 def get_seq(struc):
 	reslist = struc.atom_slice(struc.topology.select("protein and name CA"))[0].topology.to_dataframe()[0]['resName']
 	seq = [reslist[i] for i in range(len(reslist))]
@@ -119,8 +127,32 @@ def contact_maps(coors):
 
 	"""
 	import MDAnalysis.analysis.distances as mdad
-
 	return mdad.distance_array(coors, coors)
+
+def contact_types(dist,seq,nframes):
+	"""
+	Tertiary contacts by residue type
+
+	try other methods: 	positive-negative charge interactions
+				aromatic-methionine
+
+	"""
+	seq = np.array(seq) ; dist = np.array(dist) ; inds = []
+	ut = np.triu_indices(dist.shape[0]) ; dist[ut] = dist.T[ut] # symmetrize matrix. diagonal already 0.
+	rtype1 = [hydrophobic, hydrophilic, negcharge, poscharge, negcharge, poscharge, methionine,  aromatic,   aromatic]
+	rtype2 = [hydrophobic, hydrophilic, negcharge, poscharge, poscharge, negcharge,   aromatic,  aromatic, methionine]
+	labels = ['phob-phob', 'phil-phil',     '- -',     '+ +',     '- +',     '+ -',  'met-aro', 'aro-aro',  'aro-met']
+	#rtype1 = [negcharge, poscharge, methionine,   aromatic]
+	#rtype2 = [poscharge, negcharge,   aromatic, methionine]
+	#labels = [    '- +',     '+ -',  'met-aro',  'aro-met']
+	# iterate through residue type
+	for r1,r2,l in zip(rtype1,rtype2,labels):
+		# extract indices of each atom for each type. Complicated because 'flatten' doesnt seem to work
+		ind1 = [item for sublist in [np.where(seq == a)[0] for a in r1] for item in sublist]
+		ind2 = [item for sublist in [np.where(seq == a)[0] for a in r2] for item in sublist]
+		print l, np.sum(dist[ind1].T[ind2]), len(ind1)*len(ind2), np.sum(dist[ind1].T[ind2])/(len(ind1)*len(ind2))
+		#print ind1, ind2, "\n", "\n"
+	return None
 
 def gremlin_contact_maps(dist):
 	"""
@@ -138,7 +170,6 @@ def gremlin_contact_maps(dist):
 		for m in range(dist.shape[1]):
 			if dist[n][m] < contact_cutoff and (gremlin.count([n,m]) == 1 or gremlin.count([m,n]) == 1):
 				contacts[n][m] = 1
-
 	return contacts
 
 def surface_contacts(struc,SASA):
@@ -160,24 +191,16 @@ def surface_contacts(struc,SASA):
 			S.append(SASA_per_res)
 		else:
 			S.append(0.0)
-
 	#import ipdb; ipdb.set_trace()
 	surf_res = N[np.where(np.array(S) > 0)]
 	cmap = contact_maps(struc.atom_slice(struc.topology.select('name CA'))[0].xyz[0])
-
 	for n in N:
 		for m in N:
 			if (n not in surf_res or m not in surf_res) or n < m:
 				cmap[n][m] = 0
 			elif cmap[n][m] < cmap_cutoff:
 				cmap[n][m] = 1
-
 	if plot_single == True:
-		hydrophobic = ['GLY', 'ALA', 'VAL', 'ILE', 'LEU', 'MET', 'PHE', 'TYR', 'TRP', 'PRO', 'CYS']
-		hydrophilic = ['SER', 'THR', 'ASN', 'GLN', 'HIS']
-		poscharge =   ['ARG', 'LYS']
-		negcharge =   ['ASP', 'GLU']
-
 		for it,rn in enumerate(resnames):
 			if rn in hydrophobic:
 				plt.axhline(y=it,c='grey',linewidth=2)
@@ -197,7 +220,6 @@ def surface_contacts(struc,SASA):
 		plt.scatter(scat[0], scat[1],marker='s',c='k',s=90)
 		#plt.imshow(cmap,cmap='Greys')
 		plt.show()
-
 	return cmap
 
 def av_cmaps(cmaps,nres,resnames,outdir,name_mod,mtype="NULL"):
@@ -233,17 +255,13 @@ def av_cmaps(cmaps,nres,resnames,outdir,name_mod,mtype="NULL"):
 				if i == j or abs(i-j) <= 2:
 					av[i][j] = 0
 					av[j][i] = 0
-
 	else:
 		for m in range(nres):
 			for n in range(nres):
 				for fr in range(nframes):
 					av[n][m] += cmaps[fr][m][n]
-
 		av/=nframes
-
 	fig, ax = plt.subplots()
-
 	plt.setp(ax.get_xticklabels(), rotation=45, ha="right", rotation_mode="anchor")
 	if mtype == "gremlin":
 		im = ax.imshow(av, cmap='PuBu')
@@ -283,8 +301,7 @@ def av_cmaps(cmaps,nres,resnames,outdir,name_mod,mtype="NULL"):
 		ax.set_title("Average Contact Maps")
 		plt.savefig(outdir+"CMAPS" + name_mod + ".png")
 		np.savetxt(outdir+"CMAPS" + name_mod + "_av.npy",av)
-		
-	return None
+	return av
 
 def compute_XRg(PDB):
 	"""
@@ -315,4 +332,3 @@ def scatterplot(X,Y,xlabel,ylabel,filename,outdir,name_mod):
 	np.savetxt(outdir+ xlabel + name_mod + ".npy",x)
 	np.savetxt(outdir+ ylabel + name_mod + ".npy",y)
 	return None
-
