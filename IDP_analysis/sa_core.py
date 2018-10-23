@@ -93,7 +93,7 @@ def av_SS(SS,outdir,name_mod):
 	np.savetxt(outdir+"SS_E" + name_mod + "_raw.npy",E)
 	np.savetxt(outdir+"SS_C" + name_mod + "_raw.npy",C)
 
-	plot_SS(H,E,C,nframes,nres,name_mod,outdir)
+	plot_SS(H,E,C,nframes,nres,outdir,name_mod)
 	return None
 
 def plot_SS(H,E,C,nframes,nres,outdir,name_mod):

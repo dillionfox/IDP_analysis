@@ -250,7 +250,7 @@ class SA:
 			os.makedirs(self.outdir)
 		#---If no calculations are specified, run these
 		if self.calcs == []:
-			for c in ['Gyr', 'Rg', 'SASA', 'EED', 'Asph', 'cmaps', 'SS', 'PCA']:
+			for c in ['Gyr', 'Rg', 'SASA', 'EED', 'Asph', 'PCA']:
 				if c not in self.calcs:
 					self.calcs.append(c)
 		#---Rg and Asph come from gyration tensor
@@ -509,7 +509,8 @@ class SA:
 			#try: self.av_cmaps(self.scmaps,"surface")
 			#except: print "surface CMAPS didnt work"
 		if 'SS' in self.calcs:
-			try: sa_core.av_SS(self.SS)
+			sa_core.av_SS(self.SS,self.outdir,self.name_mod) ; return 0
+			try: sa_core.av_SS(self.SS,self.outdir,self.name_mod)
 			except: print "SS didnt work" ; exit()
 		if 'EED' in self.calcs and 'Asph' in self.calcs:
 			try: sa_core.scatterplot(self.EED, self.Asph, 'EED', 'Asph', 'EED_v_Asph',self.outdir,self.name_mod)
