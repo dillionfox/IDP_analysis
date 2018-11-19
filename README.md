@@ -1,5 +1,7 @@
 # IDP analysis
 
+*I'm in the process of totally re-writing the code, some features on this branch might be temporarily broken*
+
 Dependencies for full functionality:
 	NumPy
 	MDTraj
