@@ -1,14 +1,14 @@
 import numpy as np
 import mdtraj as md
 import os
-from IDP_analysis import polymer
-from IDP_analysis import pca
+from IDP_analysis.rama import rama
+from IDP_analysis.sa_core import sa_core 
+from IDP_analysis.polymer import polymer
+from IDP_analysis.mem import mem
+from IDP_analysis.diff import diff
+from IDP_analysis.pca import pca
 from IDP_analysis import kmeans_clusters
-from IDP_analysis import sa_core
-from IDP_analysis import rama
 from IDP_analysis import sa_traj
-from IDP_analysis import mem
-from IDP_analysis import diff
 
 """
 			################################
@@ -53,45 +53,66 @@ ideas of how this can be used.
 """
 
 
-class SA:
-
+class SA(sa_core,rama,polymer,mem,diff,pca):
 	def __init__(self, trajname, top='NULL', name_mod='', outdir='', calcs=[]):
 		"""
 		Create class objects. Keep most of them empty so they can be populated as the code progresses.
 
 		"""
+		# inherit classes
+		sa_core.__init__(self)
+		rama.__init__(self)
+		polymer.__init__(self)
+		mem.__init__(self)
+		diff.__init__(self)
+		pca.__init__(self)
+
+		# pertinent info
 		self.trajname = trajname	# store name of trajectory
-		self.nframes = -1		# number of frames in trajectory
-		self.nres = -1			# number of residues in structure
-		self.top = top			# store topology (pdb, only needed if traj is compressed)
-		self.name_mod = name_mod	# several functions are reused, so this name differentiates them
-		self.EED = [] 			# end-to-end distance
-		self.Rg = [] 			# radius of gyration
-		self.XRg = [] 			# predicted x-ray radius of gyration (from crysol)
-		self.SASA = [] 			# solvent accessible surface area
-		self.Asph = [] 			# asphericity 
-		self.SS = []			# secondary structure (per residue)
-		self.cmaps = []			# contact maps
-		self.gcmaps = []		# contact maps for specific residues
-		self.scmaps = []		# contact maps for residues on surface only
-		self.dihedrals = []		# store dihedrals to generate Ramachandran plot
 		self.calcs = calcs		# list of calculations to perform at run time
 		self.outdir = outdir		# directory to write output to
-		self.fex = []			# Flory Exponent
-		self.k = []			# k-means clusters labels
-		self.B = []			# matrix in PC space
+		self.top = top			# store topology (pdb, only needed if traj is compressed)
+		self.name_mod = name_mod	# several functions are reused, so this name differentiates them
+		self.OVERWRITE = 'n'		# overwrite old files? defined with class call
+		self.first_frame = 0            # 
+		self.last_frame = -1            # NEEDS TO BE FIXED!!
+		self.nframes = -1		# number of frames in trajectory
+		self.nres = -1			# number of residues in structure
+
+		# Rosetta stuff
 		self.scores = []		# list of scores from Rosetta with global index: [ind, score]
 		self.mode = 'default'		# more than one way to run this code: default, cluster, score (rosetta)
 		self.ros_frames = -1		# number of "top score" structures to look at. defined with class call (not internal to class)
-		self.OVERWRITE = 'n'		# overwrite old files? defined with class call
 		self.score_file = ''		# path to Rosetta score file.
-		self.first_frame = 0            # 
-		self.last_frame = -1            # NEEDS TO BE FIXED!!
-		self.seq = ''			# Required for some calcs
-		self.MASA = []			# Membrane accessible surface area
-		self.R_list = []		# Distances to compute diffusion (nm)
-		self.diff_data = []		# List to store diffusion data
 
+	def header(self):
+		"""
+		Print header
+
+		"""
+		print "                      _________ ______   _______                     "
+		print "                      \__   __/(  __  \ (  ____ )                    "
+		print "                         ) (   | (  \  )| (    )|                    "
+		print "                         | |   | |   ) || (____)|                    "
+		print "                         | |   | |   | ||  _____)                    "
+		print "                         | |   | |   ) || (                          "
+		print "                      ___) (___| (__/  )| )                          "
+		print "                      \_______/(______/ |/                           "
+		print "                                                                     "
+		
+		print " _______  _        _______  _              _______ _________ _______  "
+		print "(  ___  )( (    /|(  ___  )( \   |\     /|(  ____ \ __   __/(  ____ \ "
+		print "| (   ) ||  \  ( || (   ) || (   ( \   / )| (    \/   ) (   | (    \/ "
+		print "| (___) ||   \ | || (___) || |    \ (_) / | (_____    | |   | (_____  "
+		print "|  ___  || (\ \) ||  ___  || |     \   /  (_____  )   | |   (_____  ) "
+		print "| (   ) || | \   || (   ) || |      ) (         ) |   | |         ) | "
+		print "| )   ( || )  \  || )   ( || (____/\| |   /\____) |___) (___/\____) | "
+		print "|/     \||/    )_)|/     \|(_______/\_/   \_______)\_______/\_______) "
+		print
+		print
+		print "See https://github.com/dillionfox/IDP_analysis for basic information  "
+		return None
+                                                                     
 	##################################################################
 	### Load basic information about the structures being analyzed ###
 	##################################################################
@@ -100,7 +121,7 @@ class SA:
 		Extract basic information about the structure, i.e. sequence, number of residues
 
 		"""
-		self.seq = sa_core.get_seq(struc)
+		self.get_seq(struc)
 		self.nres = struc.n_residues
 		self.nframes = nframes
 		return None
@@ -224,6 +245,7 @@ class SA:
 		self.top = PDB.split("\n")[0]
 		return None
 
+
 	####################################################
 	### Special functions to handle input and output ###
 	####################################################
@@ -264,6 +286,11 @@ class SA:
 				if c not in self.calcs:
 					self.calcs.append(c)
 		#---Contacts by type requires contacts maps to be computed first
+		if 'contact_residues' in self.calcs:
+			for c in ['cmaps']:
+				if c not in self.calcs:
+					self.calcs.append(c)
+		#---Contacts by type requires contacts maps to be computed first
 		if 'contact_types' in self.calcs:
 			for c in ['cmaps']:
 				if c not in self.calcs:
@@ -283,7 +310,7 @@ class SA:
 			if c not in ['Rg', 'SASA', 'EED', 'Asph', 'rama', 'cmaps', 'PCA', 'gcmaps',\
 					'XRg','SS', 'chain', 'score','flory', 'centroids', 'Gyr', \
 					'surface_contacts', 'rmsd', 'probe', 'MASA', 'calibur', \
-					'diffusion', 'contact_types']:
+					'diffusion', 'contact_types', 'contact_residues']:
 				print c, "is not a known calculation. Exiting..."
 				exit()
 		#---Diffusion code requires some input
@@ -399,7 +426,8 @@ class SA:
 		if 'SASA' in self.calcs:
 			np.savetxt(self.outdir+'SASA'+self.name_mod+file_ext,self.SASA)
 		if 'MASA' in self.calcs:
-			np.savetxt(self.outdir+'MASA'+self.name_mod+file_ext,self.MASA)
+			print self.MASA, "\n\n", "That was MASA"
+			#np.savetxt(self.outdir+'MASA'+self.name_mod+file_ext,self.MASA)
 		if 'diffusion' in self.calcs:
 			np.savetxt(self.outdir+'diff_data'+self.name_mod+file_ext,self.diff_data)
 		if 'flory' in self.calcs:
@@ -425,10 +453,9 @@ class SA:
 		if 'Gyr' in self.calcs:
 			L = sa_core.gyration_tensor(coors)
 		if 'Rg' in self.calcs:
-			#self.Rg.append(md.compute_rg(struc)[0])
-			self.Rg.append(sa_core.compute_Rg(L))
+			self.compute_Rg(L)
 		if 'Asph' in self.calcs:
-			self.Asph.append(sa_core.compute_Asph(L))
+			self.compute_Asph(L)
 		if 'EED' in self.calcs:
 			self.EED.append(np.linalg.norm(CA_coors[0]-CA_coors[-1]))
 		if 'SASA' in self.calcs:
@@ -438,16 +465,14 @@ class SA:
 			dist = sa_core.contact_maps(CA_coors)
 			self.cmaps.append(dist)
 		if 'gcmaps' in self.calcs:
-			self.gcmaps.append(sa_core.gremlin_contact_maps(dist))
+			self.gremlin_contact_maps(dist)
 		if 'SS' in self.calcs:
 			self.SS.append(md.compute_dssp(struc))
 		if 'flory' in self.calcs:
-			self.fex.append(polymer.compute_flory(struc,self.nres))
+			self.compute_flory(struc,self.nres)
 		if 'rama' in self.calcs:
-			self.dihedrals.append(rama.compute_phipsi(struc))
+			self.dihedrals.append(self.compute_phipsi(struc))
 		if 'surface_contacts' in self.calcs:
-			#self.resnames = [struc.atom_slice(struc.topology.select('name CA')).topology.atom(r).residue.name for r in range(self.nres)]
-			# above was replaced by self.seq
 			self.scmaps.append(sa_core.surface_contacts(struc,SASA))
 		return None
 
@@ -457,7 +482,7 @@ class SA:
 
 		"""
 		if 'MASA' in self.calcs:
-			self.MASA.append(mem.MASA(struc))
+			self.MASA.append(self.MASA(struc))
 		return None
 
 	def diffusion(self,fr):
@@ -472,7 +497,7 @@ class SA:
                         	self.diff_data = np.zeros((N-1,len(self.R_list)))		
 			if fr>0:
 				for ri in range(1,len(self.R_list)):
-					self.diff_data[fr-1][ri] = diff.D_shells(struc,struc_0,self.R_list[ri-1],self.R_list[ri])
+					self.diff_data[fr-1][ri] = self.D_shells(struc,struc_0,self.R_list[ri-1],self.R_list[ri])
 
 		return None
 
@@ -519,22 +544,24 @@ class SA:
 			try: sa_core.scatterplot(self.Rg, self.SASA, 'Rg', 'SASA', 'Rg_v_SASA',self.outdir,self.name_mod)
 			except: print "didnt work 4"
 		if 'PCA' in self.calcs:
-			pca.run_PCA(self.EED,self.Rg,self.SASA,self.Asph,self.outdir,self.name_mod,self.mode,self.scores,self.trajname,self.ros_frames,self.calcs)
+			self.run_PCA(self.EED,self.Rg,self.SASA,self.Asph,self.outdir,self.name_mod,self.mode,self.scores,self.trajname,self.ros_frames,self.calcs)
 		if 'flory' in self.calcs:
-			polymer.fex_hist(self.fex,self.outdir,self.name_mod)
+			self.fex_hist(self.outdir,self.name_mod)
 		if 'chain' in self.calcs:
 			#polymer.gaussian_chain(self.EED,self.Rg,self.outdir,self.name_mod)
 			polymer.semiflexible_chain(self.EED,self.outdir,self.name_mod)
 		if 'centroids' in self.calcs:
 			self.cluster_centroids()
 		if 'rama' in self.calcs:
-			rama.rama(self.dihedrals,self.outdir,self.name_mod)
+			self.rama(self.dihedrals,self.outdir,self.name_mod)
 		if 'MASA' in self.calcs:
 			mem.plot_masa(np.array(self.MASA),self.seq,self.trajname.split(".")[0]) 
 		if 'diffusion' in self.calcs:
 			D = np.mean(np.array(self.diff_data).T,axis=1)[1:]
 			R = [(self.R_list[i]+self.R_list[i-1])/2. for i in range(1,len(self.R_list))]
-			diff.plot_shells(R,D,self.outdir,self.name_mod)
+			self.plot_shells(R,D,self.outdir,self.name_mod)
+		if 'contact_residues' in self.calcs:
+			sa_core.contact_residues(av_cmaps,self.seq,self.nframes)
 		if 'contact_types' in self.calcs:
 			sa_core.contact_types(av_cmaps,self.seq,self.nframes)
 		return None
@@ -552,6 +579,9 @@ class SA:
 
 		global file_ext ; file_ext = '_raw.npy'
 		global traj_ext ; traj_ext = self.trajname.split('.')[-1]
+
+		#---Print Header
+		self.header()
 
 		#---Code can currently be run in two modes: default, and 'score' mode
 		self.mode = mode
