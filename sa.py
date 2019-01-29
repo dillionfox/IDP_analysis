@@ -3,12 +3,12 @@ import mdtraj as md
 import os
 from IDP_analysis.rama import rama
 from IDP_analysis.sa_core import sa_core 
+from IDP_analysis.sa_traj import sa_traj
 from IDP_analysis.polymer import polymer
 from IDP_analysis.mem import mem
 from IDP_analysis.diff import diff
 from IDP_analysis.pca import pca
 from IDP_analysis import kmeans_clusters
-from IDP_analysis import sa_traj
 
 """
 			################################
@@ -53,7 +53,7 @@ ideas of how this can be used.
 """
 
 
-class SA(sa_core,rama,polymer,mem,diff,pca):
+class SA(sa_core,rama,polymer,mem,diff,pca,sa_traj):
 	def __init__(self, trajname, top='NULL', name_mod='', outdir='', calcs=[]):
 		"""
 		Create class objects. Keep most of them empty so they can be populated as the code progresses.
@@ -66,6 +66,7 @@ class SA(sa_core,rama,polymer,mem,diff,pca):
 		mem.__init__(self)
 		diff.__init__(self)
 		pca.__init__(self)
+		sa_traj.__init__(self)
 
 		# pertinent info
 		self.trajname = trajname	# store name of trajectory
@@ -223,6 +224,7 @@ class SA(sa_core,rama,polymer,mem,diff,pca):
 				exit()
 		#---If name is provided, try to load it. Note: name must be provided using class call (i.e. sa.score_file = '/path/to/score.fsc')
 		else:
+			print "LOADING SCORE FILE"
 			scores = self.load_scores(self.score_file) 
 		#---Save all Rosetta ID's with their associated scores
 		frame_sel = []
@@ -231,17 +233,16 @@ class SA(sa_core,rama,polymer,mem,diff,pca):
 			self.scores.append([i, scores[i]])
 			frame_sel.append(i)
 		#---Save associated files in a separate directory
-		fr = 0
 		if not os.path.exists(self.outdir+"top_score/pdbs"):
 			os.makedirs(self.outdir+"top_score/pdbs")
 		#---Iterate through pdb's with best scores
-		for PDB in open(self.trajname):
+		count = 0
+		for fr,PDB in enumerate(open(self.trajname)):
 			if fr in frame_sel:
 				struc = md.load(PDB.split("\n")[0])
 				struc.save(self.outdir+"top_score/"+PDB.split("\n")[0].split("/")[-1])
 				self.protein_calcs(struc)
-				print PDB.split("\n")[0]
-			fr += 1
+				count += 1
 		self.top = PDB.split("\n")[0]
 		return None
 
@@ -432,6 +433,8 @@ class SA(sa_core,rama,polymer,mem,diff,pca):
 			np.savetxt(self.outdir+'diff_data'+self.name_mod+file_ext,self.diff_data)
 		if 'flory' in self.calcs:
 			np.savetxt(self.outdir+'flory'+self.name_mod+file_ext,self.fex)
+		if 'rmsd' in self.calcs:
+			np.savetxt(self.outdir+'rmsd'+self.name_mod+file_ext,self.rmsd)
 		# cmaps, gcmaps, rama, SS, and PCA require more processing before they can be saved. 
 		# They will be saved in the post-processing (i.e. av_cmaps, av_SS) functions.
 		# For every piece of data that is saved, make sure it is in the load function!
@@ -506,8 +509,10 @@ class SA(sa_core,rama,polymer,mem,diff,pca):
 		Calculations that require all frames at once
 
 		"""
+		if 'rmsd' in self.calcs:
+			self.RMSD(traj)
 		if 'calibur' in self.calcs:
-			sa_traj.calibur(traj,self.outdir)
+			self.calibur(traj,self.outdir)
 		if 'probe' in self.calcs:
 			skip_frames = 1
 			first_frame = 0
@@ -524,17 +529,17 @@ class SA(sa_core,rama,polymer,mem,diff,pca):
 
 		"""
 		if 'cmaps' in self.calcs:
-			try: av_cmaps = sa_core.av_cmaps(self.cmaps,self.nres,self.seq,self.outdir,self.name_mod,"NULL")
+			try: av_cmaps = self.av_cmaps(self.cmaps,self.nres,self.seq,self.outdir,self.name_mod,"NULL")
 			except: print "CMAPS didnt work"
 		if 'gcmaps' in self.calcs:
-			try: sa_core.av_cmaps(self.gcmaps,self.nres,self.seq,self.outdir,self.name_mod,"gremlin")
+			try: self.av_cmaps(self.gcmaps,self.nres,self.seq,self.outdir,self.name_mod,"gremlin")
 			except: print "grem CMAPS didnt work"
 		if 'surface_contacts' in self.calcs:
-			sa_core.av_cmaps(self.scmaps,self.nres,self.seq,self.outdir,self.name_mod,"surface")
+			self.av_cmaps(self.scmaps,self.nres,self.seq,self.outdir,self.name_mod,"surface")
 			#try: self.av_cmaps(self.scmaps,"surface")
 			#except: print "surface CMAPS didnt work"
 		if 'SS' in self.calcs:
-			sa_core.av_SS(self.SS,self.outdir,self.name_mod) ; return 0
+			self.av_SS(self.SS,self.outdir,self.name_mod) ; return 0
 			try: sa_core.av_SS(self.SS,self.outdir,self.name_mod)
 			except: print "SS didnt work" ; exit()
 		if 'EED' in self.calcs and 'Asph' in self.calcs:
@@ -561,9 +566,9 @@ class SA(sa_core,rama,polymer,mem,diff,pca):
 			R = [(self.R_list[i]+self.R_list[i-1])/2. for i in range(1,len(self.R_list))]
 			self.plot_shells(R,D,self.outdir,self.name_mod)
 		if 'contact_residues' in self.calcs:
-			sa_core.contact_residues(av_cmaps,self.seq,self.nframes)
+			self.contact_residues(av_cmaps,self.seq,self.nframes)
 		if 'contact_types' in self.calcs:
-			sa_core.contact_types(av_cmaps,self.seq,self.nframes)
+			self.contact_types(av_cmaps,self.seq,self.nframes)
 		return None
 
 	#####################

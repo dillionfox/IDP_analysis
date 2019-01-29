@@ -81,8 +81,7 @@ class sa_core:
 		self.Asph.append(((L[0]-L[1])**2+(L[1]-L[2])**2+(L[0]-L[2])**2)/(2*sum(L)**2))
 		#return ((L[0]-L[1])**2+(L[1]-L[2])**2+(L[0]-L[2])**2)/(2*sum(L)**2)
 	
-	@staticmethod
-	def av_SS(SS,outdir,name_mod):
+	def av_SS(self,SS,outdir,name_mod):
 		"""
 		Average over all Seconday Structure
 	
@@ -112,9 +111,10 @@ class sa_core:
 		np.savetxt(outdir+"SS_E" + name_mod + "_raw.npy",E)
 		np.savetxt(outdir+"SS_C" + name_mod + "_raw.npy",C)
 	
-		plot_SS(H,E,C,nframes,nres,outdir,name_mod)
+		#super(sa_core, self).plot_SS(H,E,C,nframes,nres,outdir,name_mod)
+		self.plot_SS(H,E,C,nframes,nres,outdir,name_mod)
 		return None
-	
+
 	@staticmethod
 	def plot_SS(H,E,C,nframes,nres,outdir,name_mod):
 		"""
