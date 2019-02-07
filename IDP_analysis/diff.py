@@ -1,8 +1,4 @@
-import mdtraj as md
-import numpy as np
-import sys
-import matplotlib
-import matplotlib.pyplot as plt
+from lib_handler import sys, np, md, plt
 
 class diff:
 	def __init__(self):

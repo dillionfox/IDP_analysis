@@ -1,7 +1,6 @@
-import os
-import numpy as np
-import mdtraj as md
+from lib_handler import np, md, os
 
+#from sa import md, os, np
 
 def write_clusters(k,trajname,top,outdir,name_mod):
 	"""

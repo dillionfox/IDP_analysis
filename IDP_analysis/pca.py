@@ -1,9 +1,4 @@
-import numpy as np
-import matplotlib as mpl
-font = {'family' : 'normal','weight' : 'normal','size'   : 15}
-mpl.rc('font', **font)
-mpl.use('Agg')
-import matplotlib.pyplot as plt
+from lib_handler import np, plt
 
 """
 run_PCA(EED,Rg,SASA,Asph,outdir,name_mod,mode,scores,trajname,ros_frames): None
@@ -65,7 +60,7 @@ class pca:
 		print "PCA Variance:", pca.explained_variance_ratio_.cumsum()
 		i = 1
 		for pc in pca.explained_variance_ratio_.cumsum():
-			if float(pc) > elbow_cutoff:
+			if float(pc) > elbow_cutoff and i >1:
 				break
 			i+=1
 		#print "By the Elbow Rule, we will use", i, "pc's"

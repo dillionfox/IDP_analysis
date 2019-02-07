@@ -1,11 +1,4 @@
-import numpy as np
-import mdtraj as md
-import matplotlib as mpl
-font = {'family' : 'normal','weight' : 'normal','size'   : 15}
-mpl.rc('font', **font)
-mpl.use('Agg')
-import matplotlib.pyplot as plt
-import os
+from lib_handler import np, md, plt, os
 
 class sa_traj:
 	def __init__(self):
