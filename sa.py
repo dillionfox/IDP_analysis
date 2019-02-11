@@ -1,12 +1,13 @@
 from IDP_analysis import lib_handler
+from IDP_analysis.contacts import contacts
 from IDP_analysis.rama import rama
 from IDP_analysis.sa_core import sa_core 
 from IDP_analysis.sa_traj import sa_traj
 from IDP_analysis.polymer import polymer
-from IDP_analysis import mem
 from IDP_analysis.diff import diff
 from IDP_analysis.pca import pca
 from IDP_analysis import kmeans_clusters
+#from IDP_analysis import mem
 
 """
 			################################
@@ -55,12 +56,12 @@ md = lib_handler.md
 np = lib_handler.np
 os = lib_handler.os
 
-class SA(sa_core,rama,polymer,diff,pca,sa_traj):
+class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 
 	known_calcs = ['Rg', 'SASA', 'EED', 'Asph', 'rama', 'cmaps', 'PCA', 'gcmaps',\
 			'XRg','SS', 'chain', 'score','flory', 'centroids', 'Gyr', \
 			'surface_contacts', 'rmsd', 'probe', 'MASA', 'calibur', \
-			'diffusion', 'contact_types', 'contact_residues']
+			'diffusion', 'contact_types', 'contact_residues', 'membrane_contacts']
 
 	def __init__(self, trajname, top='NULL', name_mod='', outdir='', calcs=[]):
 		"""
@@ -74,10 +75,11 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj):
 		diff.__init__(self)
 		pca.__init__(self)
 		sa_traj.__init__(self)
+		contacts.__init__(self)
 
 		# pertinent info
 		self.trajname = trajname	# store name of trajectory
-		self.calcs = calcs		# list of calculations to perform at run time
+		self.calcs = np.array(calcs)	# list of calculations to perform at run time
 		self.outdir = outdir		# directory to write output to
 		self.top = top			# store topology (pdb, only needed if traj is compressed)
 		self.name_mod = name_mod	# several functions are reused, so this name differentiates them
@@ -196,9 +198,11 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj):
 				self.protein_calcs(struc)
 	
 			if 'cmaps' in self.calcs:
-				sa_core.av_cmaps(self.cmaps,self.nres,self.seq,self.outdir,self.name_mod,"NULL")
+				#@#@# sa_core --> self
+				self.av_cmaps(self.cmaps,self.nres,self.seq,self.outdir,self.name_mod,"NULL")
 			if 'SS' in self.calcs:
-				sa_core.av_SS(self.SS)
+				#@#@# sa_core --> self
+				self.av_SS(self.SS)
 			if 'flory' in self.calcs:
 				self.fex_hist()
 		return None
@@ -263,7 +267,7 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj):
 	####################################################
 	def check_calcs(self):
 		#---If no calculations are specified, run these
-		if self.calcs == []:
+		if len(self.calcs) == 0:
 			for c in ['Gyr', 'Rg', 'SASA', 'EED', 'Asph', 'PCA']:
 				if c not in self.calcs:
 					self.calcs.append(c)
@@ -282,6 +286,7 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj):
 		for c in self.calcs:
 			if c not in SA.known_calcs:
 				print c, "is not a known calculation..."
+				self.calcs = self.calcs[np.where(self.calcs != c)]
 		return None
 
 	def check_input(self):
@@ -337,8 +342,7 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj):
 
 		"""
 		#---Load data
-		self.calcs = np.array(self.calcs)
-		for c in ['Rg', 'EED', 'Asph', 'SASA', 'cmaps', 'gcmaps', 'rama', 'MASA', 'diffusion', 'flory', 'rmsd']:
+		for c in ['Rg', 'EED', 'Asph', 'SASA', 'cmaps', 'gcmaps', 'rama', 'MASA', 'diffusion', 'flory', 'rmsd', 'membrane_contacts']:
 			if c in self.calcs and os.path.isfile(self.outdir+c+self.name_mod+file_ext):
 				print 'loading data for', c, self.outdir+c+self.name_mod+file_ext
 				self.__dict__[c] = np.loadtxt(self.outdir+c+self.name_mod+file_ext)
@@ -382,7 +386,7 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj):
 		to be recomputed
 
 		"""
-		for c in ['Rg', 'EED', 'Asph', 'SASA', 'rama', 'diffusion', 'flory', 'rmsd']:
+		for c in ['Rg', 'EED', 'Asph', 'SASA', 'rama', 'diffusion', 'flory', 'rmsd', 'membrane_contacts']:
 			if c in self.calcs:
 				np.savetxt(self.outdir+c+self.name_mod+file_ext,self.__dict__[c])
 		return None
@@ -401,7 +405,8 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj):
 		self.nres = struc.n_residues
 
 		if 'Gyr' in self.calcs:
-			L = sa_core.gyration_tensor(coors)
+			#@#@# sa_core --> self
+			L = self.gyration_tensor(coors)
 		if 'Rg' in self.calcs:
 			self.compute_Rg(L)
 		if 'Asph' in self.calcs:
@@ -412,7 +417,8 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj):
 			SASA = md.shrake_rupley(struc)
 			self.SASA.append(SASA.sum(axis=1)[0])
 		if 'cmaps' in self.calcs:
-			dist = sa_core.contact_maps(CA_coors)
+			#@#@# sa_core --> self
+			dist = self.contact_maps(CA_coors)
 			self.cmaps.append(dist)
 		if 'gcmaps' in self.calcs:
 			self.gremlin_contact_maps(dist)
@@ -423,7 +429,8 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj):
 		if 'rama' in self.calcs:
 			self.dihedrals.append(self.compute_phipsi(struc))
 		if 'surface_contacts' in self.calcs:
-			self.scmaps.append(sa_core.surface_contacts(struc,SASA))
+			#@#@# sa_core --> self
+			self.scmaps.append(self.surface_contacts(struc,SASA))
 		return None
 
 	def membrane_calcs(self,struc):
@@ -432,8 +439,10 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj):
 
 		"""
 		if 'MASA' in self.calcs:
-			t = mem.MASA(struc)
-			self.MASA.append(t)
+			self.MASA.append(mem.MASA(struc))
+		if 'membrane_contacts' in self.calcs:
+			self.compute_contacts(struc)
+			
 		return None
 
 	def diffusion(self,fr):
@@ -488,14 +497,8 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj):
 			#except: print "surface CMAPS didnt work"
 		if 'SS' in self.calcs:
 			self.av_SS(self.SS,self.outdir,self.name_mod) ; return 0
-			try: sa_core.av_SS(self.SS,self.outdir,self.name_mod)
+			try: self.av_SS(self.SS,self.outdir,self.name_mod)
 			except: print "SS didnt work" ; exit()
-		if 'EED' in self.calcs and 'Asph' in self.calcs:
-			try: sa_core.scatterplot(self.EED, self.Asph, 'EED', 'Asph', 'EED_v_Asph',self.outdir,self.name_mod)
-			except: print "didnt work 3"
-		if 'Rg' in self.calcs and 'SASA' in self.calcs:
-			try: sa_core.scatterplot(self.Rg, self.SASA, 'Rg', 'SASA', 'Rg_v_SASA',self.outdir,self.name_mod)
-			except: print "didnt work 4"
 		if 'PCA' in self.calcs:
 			self.run_PCA(self.EED,self.Rg,self.SASA,self.Asph,self.outdir,self.name_mod,self.mode,self.scores,self.trajname,self.ros_frames,self.calcs)
 		if 'flory' in self.calcs:
@@ -517,6 +520,8 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj):
 			self.contact_residues(av_cmaps,self.seq,self.nframes)
 		if 'contact_types' in self.calcs:
 			self.contact_types(av_cmaps,self.seq,self.nframes)
+		if 'membrane_contacts' in self.calcs:
+			self.plot_contact_hist(self.outdir,self.name_mod)
 		return None
 
 	#####################

@@ -7,6 +7,22 @@ proper, useful object.
 
 """
 
+class contacts:
+	def __init__(self,sel1="protein",sel2="resname DMPC",cutoff=0.4):
+		self.sel1 = sel1
+		self.sel2 = sel2
+		self.cutoff = cutoff
+
+	def compute_contacts(self,struc):
+		indlist, reslist, rnlist = get_residues(self.sel1)
+		sel1_ind = struc.topology.select(self.sel1)
+		sel2_ind = struc.topology.select(self.sel2)
+		sel1_neighbors = md.compute_neighbors(struc,self.cutoff,sel2_ind,sel1_ind)[0]
+		contacts = np.zeros(len(sel1_ind)) ; first_atom = min(sel1_ind)
+		print sel1_neighbors
+		exit()
+
+
 ### Protein/Lipid SASA ###
 global ATOMIC_RADII
 ATOMIC_RADII = {'H'   : 0.120, 'He'  : 0.140, 'Li'  : 0.076, 'Be' : 0.059, 
@@ -46,6 +62,10 @@ int_to_vec = {0:'x', 1:'y', 2:'z'}
 interface_vector = 'z'
 
 def plot_masa(l,sequence,name):
+	"""
+	***Currently not being used
+
+	"""
 	plt.clf()
 	flat_list = [item for sublist in l for item in sublist]
 
@@ -159,10 +179,15 @@ def MASA(struc,sel1="protein",sel2="resname DMPC"):
 			if is_accessible == True: break
 		#areas[it] = const*n_accessible_points*r_i*r_i
 		areas[atom_i-first_atom] = const*n_accessible_points*r_i*r_i
-	ureslist = sorted(set(reslist)) ; resareas = np.zeros(len(ureslist)) ; first_res = min(ureslist)
+	
+	ureslist = sorted(set(reslist))
+	resareas = np.zeros(len(ureslist))
+	first_res = min(ureslist)
+
 	for ai,area in enumerate(areas): 
 		if area > 0: resareas[reslist[ai]-first_res] += area
 	#write_pdb(surface,"test_points.pdb") ; write_pdb(prot_pts,"neigh_points.pdb")
+	print "MASA Results!!!!", np.where(np.array(resareas) > 0)[0]
 	return np.where(np.array(resareas) > 0)[0]
 
 def write_pdb(coors,pdbname):

@@ -273,7 +273,6 @@ class pca:
 			plt.scatter(coors[0], coors[1], c='r',s=30)
 			for i in range(N+1):
 				plt.plot([centroids[0][i], coors[0][i]], [centroids[1][i], coors[1][i]])
-			print "NUMBER", N
 			plt.xlim([-2,2])
 			plt.ylim([-2,2])
 			plt.xlabel('PC-1')
