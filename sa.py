@@ -1,5 +1,6 @@
 from IDP_analysis import lib_handler
-from IDP_analysis.contacts import contacts
+from IDP_analysis.sa_mem import contacts
+from IDP_analysis.sa_mem import mem_analysis
 from IDP_analysis.rama import rama
 from IDP_analysis.sa_core import sa_core 
 from IDP_analysis.sa_traj import sa_traj
@@ -7,7 +8,7 @@ from IDP_analysis.polymer import polymer
 from IDP_analysis.diff import diff
 from IDP_analysis.pca import pca
 from IDP_analysis import kmeans_clusters
-#from IDP_analysis import mem
+from IDP_analysis import messages
 
 """
 			################################
@@ -56,12 +57,24 @@ md = lib_handler.md
 np = lib_handler.np
 os = lib_handler.os
 
-class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
+class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,mem_analysis):
 
+	#---Every known calculation
 	known_calcs = ['Rg', 'SASA', 'EED', 'Asph', 'rama', 'cmaps', 'PCA', 'gcmaps',\
 			'XRg','SS', 'chain', 'score','flory', 'centroids', 'Gyr', \
 			'surface_contacts', 'rmsd', 'probe', 'MASA', 'calibur', \
-			'diffusion', 'contact_types', 'contact_residues', 'membrane_contacts']
+			'diffusion', 'contact_types', 'contact_residues', 'membrane_contacts',\
+			'area_per_lipid','persistence_length']
+
+	#---Calculations that depend on each other
+	deps = {'Rg':['Gyr'], 'Asph':['Gyr'], 'surface_contacts':['SASA'],\
+			'contact_residues':['cmaps'], 'contact_types':['cmaps'],\
+			'PCA':['Gyr','Rg','SASA','EED','Asph'],'chain':['Gyr','Rg','EED']}
+
+	#---Every known post-analysis function
+	post_analysis = ['cmaps', 'gcmaps', 'surface_contacts', 'SS' , 'PCA',\
+			'flory', 'chain', 'centroids', 'rama', 'MASA', 'diffusion',\
+			 'contact_residues', 'contact_types', 'membrane_contacts']
 
 	def __init__(self, trajname, top='NULL', name_mod='', outdir='', calcs=[]):
 		"""
@@ -76,56 +89,31 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 		pca.__init__(self)
 		sa_traj.__init__(self)
 		contacts.__init__(self)
+		mem_analysis.__init__(self)
 
 		# pertinent info
 		self.trajname = trajname	# store name of trajectory
 		self.calcs = np.array(calcs)	# list of calculations to perform at run time
+		self.analysis = []		# list of post-processing functions to be run
 		self.outdir = outdir		# directory to write output to
-		self.top = top			# store topology (pdb, only needed if traj is compressed)
+		self.plot_only = False		# only load data and run analysis
 		self.name_mod = name_mod	# several functions are reused, so this name differentiates them
 		self.OVERWRITE = 'n'		# overwrite old files? defined with class call
+		self.verbose = False		# extra print statements
+		self.mode = 'default'		# more than one way to run this code: default, cluster, score (rosetta)
+
+		# structural info
+		self.top = top			# store topology (pdb, only needed if traj is compressed)
 		self.first_frame = 0            # 
 		self.last_frame = -1            # NEEDS TO BE FIXED!!
 		self.nframes = -1		# number of frames in trajectory
 		self.nres = -1			# number of residues in structure
-
-		# added
-		self.MASA = []
-
-		# Rosetta stuff
 		self.scores = []		# list of scores from Rosetta with global index: [ind, score]
-		self.mode = 'default'		# more than one way to run this code: default, cluster, score (rosetta)
 		self.ros_frames = -1		# number of "top score" structures to look at. defined with class call (not internal to class)
 		self.score_file = ''		# path to Rosetta score file.
 
-	@staticmethod
-	def header():
-		"""
-		Print header
-
-		"""
-		print "                      _________ ______   _______                     "
-		print "                      \__   __/(  __  \ (  ____ )                    "
-		print "                         ) (   | (  \  )| (    )|                    "
-		print "                         | |   | |   ) || (____)|                    "
-		print "                         | |   | |   | ||  _____)                    "
-		print "                         | |   | |   ) || (                          "
-		print "                      ___) (___| (__/  )| )                          "
-		print "                      \_______/(______/ |/                           "
-		print "                                                                     "
-		
-		print " _______  _        _______  _              _______ _________ _______  "
-		print "(  ___  )( (    /|(  ___  )( \   |\     /|(  ____ \ __   __/(  ____ \ "
-		print "| (   ) ||  \  ( || (   ) || (   ( \   / )| (    \/   ) (   | (    \/ "
-		print "| (___) ||   \ | || (___) || |    \ (_) / | (_____    | |   | (_____  "
-		print "|  ___  || (\ \) ||  ___  || |     \   /  (_____  )   | |   (_____  ) "
-		print "| (   ) || | \   || (   ) || |      ) (         ) |   | |         ) | "
-		print "| )   ( || )  \  || )   ( || (____/\| |   /\____) |___) (___/\____) | "
-		print "|/     \||/    )_)|/     \|(_______/\_/   \_______)\_______/\_______) "
-		print
-		print
-		print "See https://github.com/dillionfox/IDP_analysis for basic information  "
-		return None
+		# added
+		self.MASA = []
 
 	##################################################################
 	### Load basic information about the structures being analyzed ###
@@ -139,19 +127,6 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 		self.nres = struc.n_residues
 		self.nframes = nframes
 		return None
-
-	def load_scores(self,fil): 
-		"""
-		Parse Rosetta score file for scores
-
-		"""
-		score = [] 
-		for line in open(fil): 
-			list = line.split() 
-			if list[1] == "score": 
-				continue 
-			score.append(float(list[1])) 
-		return np.array(score)
 
 	def load_top(self):
 		"""
@@ -167,9 +142,156 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 
 		return None
 
-	#########################################################
-	### Special functions to run the code in "score mode" ###
-	#########################################################
+	####################################################
+	### Special functions to handle input and output ###
+	####################################################
+	def check_calcs(self):
+		#---If no calculations are specified, run these
+		if len(self.calcs) == 0:
+			for c in ['Gyr', 'Rg', 'SASA', 'EED', 'Asph', 'PCA']:
+				if c not in self.calcs:
+					self.calcs = np.append(self.calcs,c)
+		for c in self.calcs:
+			#---Check for requests that can't be fulfilled
+			if c not in SA.known_calcs:
+				print c, "is not a known calculation..."
+				self.calcs = self.calcs[np.where(self.calcs != c)]
+			#---Add dependencies
+			if c in SA.deps:
+				for ext_dep in SA.deps[c]:
+					if ext_dep not in self.calcs:
+						self.calcs = np.append(self.calcs,ext_dep)
+			#---Add post-processing funcitons
+			if c in SA.post_analysis:
+				self.analysis.append(c)
+		analysis_only = ['chain']
+		for c in self.calcs:
+			if c in analysis_only:
+				self.calcs = self.calcs[np.where(self.calcs != c)]
+		return None
+
+	def check_input(self):
+		"""
+		This function determines which calcs need to be run
+
+		"""
+		#---Make sure 'outdir' is formatted properly
+		try:
+			#---Sometimes I accidentally put / on the end twice
+			if self.outdir[-2] == '/' and self.outdir[-1] == '/':
+				self.outdir = self.outdir[:-1]
+			#---Sometimes I over-correct and don't put any
+			if self.outdir[-1] != '/':
+				self.outdir = self.outdir+'/'
+		except:
+			if self.outdir == '':
+				pass
+			else:
+				print "something is weird here. outdir =", self.outdir
+
+		#---If outdir doesn't exist, make it
+		if not os.path.exists(self.outdir):
+			os.makedirs(self.outdir)
+
+		#---Make sure all calculations are being called properly
+		self.check_calcs()
+
+		#---It doesn't make sense to try to overwrite raw data and only plot raw data
+		if self.plot_only and self.OVERWRITE:
+			print "You can't overwrite raw data and only plot raw data. Continuing, but this will not work."
+		#---Diffusion code requires some input
+		if 'diffusion' in self.calcs:
+			print "reminder: If you're computing the diffusion coefficient from a replica exchange simulation,"
+			print "then you must use a continuous trajectory"
+			self.R_list = np.array([0, 0.25, 0.5, 0.75, 1.0, 1.25,1.5,1.75])	
+			# code is not currently set up to compute diffusion from pdbs. Not hard, just not doing it right now.
+			if traj_ext == 'txt':
+				print "can't compute diffusion constant from pdb's yet. Change the loop structure to fix it"
+				exit()
+		#---If ros_frames isn't specified, use 100 by default
+		if self.mode == 'score' and self.ros_frames == -1:
+			self.ros_frames = 100
+		return None
+
+	def overwrite(self):
+		"""
+		If you want to overwrite old data
+
+		"""
+		self.OVERWRITE = 'y'
+		return None
+
+	def load_data(self):
+		"""
+		Don't compute things twice. Load pre-computed data from previous runs
+
+		"""
+		#---Load data
+		for c in ['Rg', 'EED', 'Asph', 'SASA', 'cmaps', 'gcmaps', 'rama', 'MASA', 'diffusion', 'flory', 'rmsd', 'membrane_contacts']:
+			if c in self.calcs and os.path.isfile(self.outdir+c+self.name_mod+file_ext):
+				print 'loading data for', c, self.outdir+c+self.name_mod+file_ext
+				self.__dict__[c] = np.loadtxt(self.outdir+c+self.name_mod+file_ext)
+				self.calcs = self.calcs[np.where(self.calcs != c)]
+
+		#---There's no point in just computing the Gyration Tensor
+		if 'Gyr' in self.calcs and ('Rg' not in self.calcs and 'Asph' not in self.calcs):
+			self.calcs = self.calcs[np.where(self.calcs != 'Gyr')]
+
+		#---Special cases
+		if 'SS' in self.calcs and os.path.isfile(self.outdir+'SS_H'+self.name_mod+file_ext):
+			print 'loading data for SS...', self.outdir+'SS_H'+self.name_mod+file_ext
+			nres,nframes = np.loadtxt(self.outdir+'SS_H'+self.name_mod+file_ext).shape
+			self.SS = np.zeros((3,nres,nframes))
+			self.SS[0] = np.loadtxt(self.outdir+'SS_H'+self.name_mod+file_ext)
+			self.SS[1] = np.loadtxt(self.outdir+'SS_E'+self.name_mod+file_ext)
+			self.SS[2] = np.loadtxt(self.outdir+'SS_C'+self.name_mod+file_ext)
+			self.calcs = self.calcs[np.where(self.calcs != 'SS')]
+		if 'PCA' in self.calcs or 'centroids' in self.calcs:
+			# This is a special case. If all of the files already exist, don't bother loading them.
+			# The calculation is complete.
+			pca1 = self.outdir+'PCA_kmeans_clusters' + self.name_mod + '.npy'
+			pca2 = self.outdir+'PCA_kmeans_A' + self.name_mod + '.npy'
+			pca3 = self.outdir+'PCA_kmeans_B' + self.name_mod + '.npy'
+			if (os.path.isfile(pca1) and os.path.isfile(pca1) and os.path.isfile(pca1)) and 'centroids' not in self.calcs:
+				print "skipping PCA calculation..."
+				self.calcs = self.calcs[np.where(self.calcs != 'PCA')]
+			elif (os.path.isfile(pca1) and os.path.isfile(pca1) and os.path.isfile(pca1)) and 'centroids' in self.calcs:
+				print "loading PCA data...", "\n", pca1, "\n", pca2, "\n", pca3
+				self.k = np.loadtxt(pca1)
+				self.A = np.loadtxt(pca2)
+				self.B = np.loadtxt(pca3)
+			else:
+				pass
+		print 'DONE loading data'
+		return None
+
+	def write_data(self):
+		"""
+		This is the core data used by many features of the code. Save it so it doesn't need
+		to be recomputed
+
+		"""
+		for c in ['Rg', 'EED', 'Asph', 'SASA', 'rama', 'diffusion', 'flory', 'rmsd', 'membrane_contacts']:
+			if c in self.calcs:
+				np.savetxt(self.outdir+c+self.name_mod+file_ext,self.__dict__[c])
+		return None
+
+	###########################################################
+	# Special run modes: Rosetta Score Mode, Analyze Clusters #
+	###########################################################
+	def load_scores(self,fil): 
+		"""
+		Parse Rosetta score file for scores
+
+		"""
+		score = [] 
+		for line in open(fil): 
+			list = line.split() 
+			if list[1] == "score": 
+				continue 
+			score.append(float(list[1])) 
+		return np.array(score)
+
 	def analyze_clusters(self):
 		"""
 		Structures can be characterized by PCA, and the structures can be clustered using k-means in PC-space.
@@ -196,7 +318,6 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 			self.nres = dcd[0].n_residues
 			for struc in dcd:
 				self.protein_calcs(struc)
-	
 			if 'cmaps' in self.calcs:
 				#@#@# sa_core --> self
 				self.av_cmaps(self.cmaps,self.nres,self.seq,self.outdir,self.name_mod,"NULL")
@@ -204,7 +325,7 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 				#@#@# sa_core --> self
 				self.av_SS(self.SS)
 			if 'flory' in self.calcs:
-				self.fex_hist()
+				self.flory_hist()
 		return None
 
 	def run_score_mode(self):
@@ -261,136 +382,6 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 		self.top = PDB.split("\n")[0]
 		return None
 
-
-	####################################################
-	### Special functions to handle input and output ###
-	####################################################
-	def check_calcs(self):
-		#---If no calculations are specified, run these
-		if len(self.calcs) == 0:
-			for c in ['Gyr', 'Rg', 'SASA', 'EED', 'Asph', 'PCA']:
-				if c not in self.calcs:
-					self.calcs.append(c)
-
-		#---Check for calculations that depend on each other
-		deps = {'Rg':['Gyr'], 'Asph':['Gyr'], 'surface_contacts':['SASA'],\
-				'contact_residues':['cmaps'], 'contact_types':['cmaps'],\
-				'PCA':['Gyr','Rg','SASA','EED','Asph'],'chain':['Gyr','Rg','EED']}
-		for dep in self.calcs:
-			if dep in deps:
-				for ext_dep in deps[dep]:
-					if ext_dep not in self.calcs:
-						self.calcs.append(ext_dep)
-
-		#---Check for requests that can't be fulfilled
-		for c in self.calcs:
-			if c not in SA.known_calcs:
-				print c, "is not a known calculation..."
-				self.calcs = self.calcs[np.where(self.calcs != c)]
-		return None
-
-	def check_input(self):
-		"""
-		This function determines which calcs need to be run
-
-		"""
-		#---Make sure 'outdir' is formatted properly
-		try:
-			#---Sometimes I accidentally put / on the end twice
-			if self.outdir[-2] == '/' and self.outdir[-1] == '/':
-				self.outdir = self.outdir[:-1]
-			#---Sometimes I over-correct and don't put any
-			if self.outdir[-1] != '/':
-				self.outdir = self.outdir+'/'
-		except:
-			if self.outdir == '':
-				pass
-			else:
-				print "something is weird here. outdir =", self.outdir
-		#---If outdir doesn't exist, make it
-		if not os.path.exists(self.outdir):
-			os.makedirs(self.outdir)
-
-		#---Make sure all calculations are being called properly
-		self.check_calcs()
-
-		#---Diffusion code requires some input
-		if 'diffusion' in self.calcs:
-			print "reminder: If you're computing the diffusion coefficient from a replica exchange simulation,"
-			print "then you must use a continuous trajectory"
-			self.R_list = np.array([0, 0.25, 0.5, 0.75, 1.0, 1.25,1.5,1.75])	
-			# code is not currently set up to compute diffusion from pdbs. Not hard, just not doing it right now.
-			if traj_ext == 'txt':
-				print "can't compute diffusion constant from pdb's yet. Change the loop structure to fix it"
-				exit()
-		#---If ros_frames isn't specified, use 100 by default
-		if self.mode == 'score' and self.ros_frames == -1:
-			self.ros_frames = 100
-		return None
-
-	def overwrite(self):
-		"""
-		If you want to overwrite old data
-
-		"""
-		self.OVERWRITE = 'y'
-		return None
-
-	def load_data(self):
-		"""
-		Don't compute things twice. Load pre-computed data from previous runs
-
-		"""
-		#---Load data
-		for c in ['Rg', 'EED', 'Asph', 'SASA', 'cmaps', 'gcmaps', 'rama', 'MASA', 'diffusion', 'flory', 'rmsd', 'membrane_contacts']:
-			if c in self.calcs and os.path.isfile(self.outdir+c+self.name_mod+file_ext):
-				print 'loading data for', c, self.outdir+c+self.name_mod+file_ext
-				self.__dict__[c] = np.loadtxt(self.outdir+c+self.name_mod+file_ext)
-				self.calcs = self.calcs[np.where(self.calcs != c)]
-
-		#---There's no point in just computing the Gyration Tensor
-		if len(self.calcs) == 1 and 'Gyr' in self.calcs:
-			self.calcs = []
-
-		#---Special cases
-		if 'SS' in self.calcs and os.path.isfile(self.outdir+'SS_H'+self.name_mod+file_ext):
-			print 'loading data for SS...', self.outdir+'SS_H'+self.name_mod+file_ext
-			nres,nframes = np.loadtxt(self.outdir+'SS_H'+self.name_mod+file_ext).shape
-			self.SS = np.zeros((3,nres,nframes))
-			self.SS[0] = np.loadtxt(self.outdir+'SS_H'+self.name_mod+file_ext)
-			self.SS[1] = np.loadtxt(self.outdir+'SS_E'+self.name_mod+file_ext)
-			self.SS[2] = np.loadtxt(self.outdir+'SS_C'+self.name_mod+file_ext)
-			self.calcs = self.calcs[np.where(self.calcs != 'SS')]
-		if 'PCA' in self.calcs or 'centroids' in self.calcs:
-			# This is a special case. If all of the files already exist, don't bother loading them.
-			# The calculation is complete.
-			pca1 = self.outdir+'PCA_kmeans_clusters' + self.name_mod + '.npy'
-			pca2 = self.outdir+'PCA_kmeans_A' + self.name_mod + '.npy'
-			pca3 = self.outdir+'PCA_kmeans_B' + self.name_mod + '.npy'
-			if (os.path.isfile(pca1) and os.path.isfile(pca1) and os.path.isfile(pca1)) and 'centroids' not in self.calcs:
-				print "skipping PCA calculation..."
-				self.calcs = self.calcs[np.where(self.calcs != 'PCA')]
-			elif (os.path.isfile(pca1) and os.path.isfile(pca1) and os.path.isfile(pca1)) and 'centroids' in self.calcs:
-				print "loading PCA data...", "\n", pca1, "\n", pca2, "\n", pca3
-				self.k = np.loadtxt(pca1)
-				self.A = np.loadtxt(pca2)
-				self.B = np.loadtxt(pca3)
-			else:
-				pass
-		print 'DONE loading data'
-		return None
-
-	def write_data(self):
-		"""
-		This is the core data used by many features of the code. Save it so it doesn't need
-		to be recomputed
-
-		"""
-		for c in ['Rg', 'EED', 'Asph', 'SASA', 'rama', 'diffusion', 'flory', 'rmsd', 'membrane_contacts']:
-			if c in self.calcs:
-				np.savetxt(self.outdir+c+self.name_mod+file_ext,self.__dict__[c])
-		return None
-
 	##################################
 	### Run requested calculations ###
 	##################################
@@ -405,7 +396,6 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 		self.nres = struc.n_residues
 
 		if 'Gyr' in self.calcs:
-			#@#@# sa_core --> self
 			L = self.gyration_tensor(coors)
 		if 'Rg' in self.calcs:
 			self.compute_Rg(L)
@@ -417,7 +407,6 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 			SASA = md.shrake_rupley(struc)
 			self.SASA.append(SASA.sum(axis=1)[0])
 		if 'cmaps' in self.calcs:
-			#@#@# sa_core --> self
 			dist = self.contact_maps(CA_coors)
 			self.cmaps.append(dist)
 		if 'gcmaps' in self.calcs:
@@ -429,7 +418,6 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 		if 'rama' in self.calcs:
 			self.dihedrals.append(self.compute_phipsi(struc))
 		if 'surface_contacts' in self.calcs:
-			#@#@# sa_core --> self
 			self.scmaps.append(self.surface_contacts(struc,SASA))
 		return None
 
@@ -441,8 +429,10 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 		if 'MASA' in self.calcs:
 			self.MASA.append(mem.MASA(struc))
 		if 'membrane_contacts' in self.calcs:
-			self.compute_contacts(struc)
-			
+			if not self.plot_only:
+				self.compute_contacts(struc)
+		if 'area_per_lipid' in self.calcs:
+			self.area_per_lipid(struc)
 		return None
 
 	def diffusion(self,fr):
@@ -478,6 +468,8 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 			cutoff = 5
 			probe_radius = 1.0
 			mem.interface_probe(self.top,self.trajname,skip_frames,first_frame,last_frame,nthreads,cutoff,probe_radius,self.seq)
+		if 'persistence_length' in self.calcs:
+			self.persistence_length(traj)
 		return None
 
 	def post_process(self):
@@ -485,42 +477,43 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 		All post-processing functions go here
 
 		"""
-		if 'cmaps' in self.calcs:
+		if 'cmaps' in self.analysis:
 			try: av_cmaps = self.av_cmaps(self.cmaps,self.nres,self.seq,self.outdir,self.name_mod,"NULL")
 			except: print "CMAPS didnt work"
-		if 'gcmaps' in self.calcs:
+		if 'gcmaps' in self.analysis:
 			try: self.av_cmaps(self.gcmaps,self.nres,self.seq,self.outdir,self.name_mod,"gremlin")
 			except: print "grem CMAPS didnt work"
-		if 'surface_contacts' in self.calcs:
+		if 'surface_contacts' in self.analysis:
 			self.av_cmaps(self.scmaps,self.nres,self.seq,self.outdir,self.name_mod,"surface")
 			#try: self.av_cmaps(self.scmaps,"surface")
 			#except: print "surface CMAPS didnt work"
-		if 'SS' in self.calcs:
+		if 'SS' in self.analysis:
 			self.av_SS(self.SS,self.outdir,self.name_mod) ; return 0
 			try: self.av_SS(self.SS,self.outdir,self.name_mod)
 			except: print "SS didnt work" ; exit()
-		if 'PCA' in self.calcs:
-			self.run_PCA(self.EED,self.Rg,self.SASA,self.Asph,self.outdir,self.name_mod,self.mode,self.scores,self.trajname,self.ros_frames,self.calcs)
-		if 'flory' in self.calcs:
-			self.fex_hist(self.outdir,self.name_mod)
-		if 'chain' in self.calcs:
-			#polymer.gaussian_chain(self.EED,self.Rg,self.outdir,self.name_mod)
+		if 'PCA' in self.analysis:
+			self.run_PCA(self.EED,self.Rg,self.SASA,self.Asph,self.outdir,self.name_mod,self.mode,self.scores,self.trajname,self.ros_frames,self.analysis)
+		if 'flory' in self.analysis:
+			self.flory_hist(self.nres,self.outdir,self.name_mod)
+		if 'chain' in self.analysis:
+			#polymer.persistence_length_2(self.EED,self.outdir,self.name_mod)
+			polymer.gaussian_chain(self.EED,self.Rg,self.outdir,self.name_mod)
 			polymer.semiflexible_chain(self.EED,self.outdir,self.name_mod)
-		if 'centroids' in self.calcs:
+		if 'centroids' in self.analysis:
 			self.cluster_centroids()
-		if 'rama' in self.calcs:
+		if 'rama' in self.analysis:
 			self.rama(self.dihedrals,self.outdir,self.name_mod)
-		if 'MASA' in self.calcs:
+		if 'MASA' in self.analysis:
 			mem.plot_masa(np.array(self.MASA),self.seq,self.trajname.split(".")[0]) 
-		if 'diffusion' in self.calcs:
+		if 'diffusion' in self.analysis:
 			D = np.mean(np.array(self.diff_data).T,axis=1)[1:]
 			R = [(self.R_list[i]+self.R_list[i-1])/2. for i in range(1,len(self.R_list))]
 			self.plot_shells(R,D,self.outdir,self.name_mod)
-		if 'contact_residues' in self.calcs:
+		if 'contact_residues' in self.analysis:
 			self.contact_residues(av_cmaps,self.seq,self.nframes)
-		if 'contact_types' in self.calcs:
+		if 'contact_types' in self.analysis:
 			self.contact_types(av_cmaps,self.seq,self.nframes)
-		if 'membrane_contacts' in self.calcs:
+		if 'membrane_contacts' in self.analysis:
 			self.plot_contact_hist(self.outdir,self.name_mod)
 		return None
 
@@ -529,7 +522,7 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 	#####################
 	def run(self,mode='default'):
 	        """
-		Runs and handles all function calls. All data is stored in class object.
+		Runs and handles all function calls. All data is stored in class objects.
 
 	        """
 		from timeit import default_timer as timer
@@ -539,7 +532,7 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 		global traj_ext ; traj_ext = self.trajname.split('.')[-1]
 
 		#---Print Header
-		self.header()
+		messages.header()
 
 		#---Code can currently be run in two modes: default, and 'score' mode
 		self.mode = mode
@@ -562,7 +555,7 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 		else: LOAD = True
 
 		#---Run the code
-		if self.mode == 'default':
+		if self.mode == 'default' and not self.plot_only:
 			#---Set LOAD = False if you just want to post-process existing data
 			if LOAD == True:
 				print "Loading Trajectory"
@@ -587,6 +580,8 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 						traj = traj[self.first_frame:self.last_frame]
 					#---Frame-by-frame calculations
 					for fr_,struc in enumerate(traj):
+						if self.verbose:
+							print "frame", fr_, "of", len(traj)
 						#---If .txt, then the structures have to be loaded one-by-one
 						if traj_ext == 'txt': struc = md.load(struc.split("\n")[0])
 						#---Many calculations only require protein coordinates
@@ -609,16 +604,8 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts):
 		#---Run post-processing functions, i.e. plotting, etc.
 		self.post_process()
 
-		end = timer()
-		print "Total execution time:", end-start
-
+		print "Total execution time:", timer()-start
 		return None
-
-def USAGE():
-	print "USEAGE: python rosetta_analysis.py ARGS"
-	print "ARGS: EITHER a list of pdbs in a file with a .txt extension, or"
-	print "a .dcd/.xtc and a .pdb"
-	exit()
 
 ###############################
 ### Obsolete. Needs updated ###
@@ -630,16 +617,16 @@ if __name__ == "__main__":
 			PDB_list = sys.argv[1]
 			sa = SA(PDB_list,'','_test','test',['MASA'])
 		else:
-			USAGE()
+			messages.usage()
 	elif len(sys.argv) == 3:
 		if sys.argv[1].split('.')[1] in ['dcd', 'xtc'] and sys.argv[2].split('.')[1] in ['pdb', 'gro']:
 			traj = sys.argv[1]
 			top = sys.argv[2]
 			sa = SA(traj,top,'test','test_traj/',['Rg'])
 		else:
-			USAGE()
+			messages.usage()
 	else:
-		USAGE()
+		messages.usage()
 
 	sa.overwrite()
 	sa.run()
