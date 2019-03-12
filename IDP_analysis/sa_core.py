@@ -73,6 +73,16 @@ class sa_core:
 	        """
 		self.Asph.append(((L[0]-L[1])**2+(L[1]-L[2])**2+(L[0]-L[2])**2)/(2*sum(L)**2))
 		#return ((L[0]-L[1])**2+(L[1]-L[2])**2+(L[0]-L[2])**2)/(2*sum(L)**2)
+
+	def plot_Rg(self,outdir,name_mod):
+		plt.clf()
+		plt.hist(self.Rg,bins = np.linspace(0.6,2.6,20), edgecolor='k', align='left')
+		plt.xlabel('Rg [nm]')
+		plt.ylabel('# Occurrences')
+		plt.ylim([0,140])
+		plt.subplots_adjust(left=0.13, right=0.9, top=0.9, bottom=0.13)
+		plt.savefig(outdir+'Rg' + name_mod + '.png')
+		return None
 	
 	def av_SS(self,SS,outdir,name_mod):
 		"""

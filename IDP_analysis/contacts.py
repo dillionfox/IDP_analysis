@@ -1,5 +1,10 @@
 from lib_handler import np, md, plt
 
+"""
+Merged with sa_mem
+
+"""
+
 class contacts:
 
 	def __init__(self,sel1="protein",sel2="resname DMPC",cutoff=0.3):
@@ -29,6 +34,8 @@ class contacts:
 
 	def plot_contact_hist(self,outdir,name_mod):
 		plt.clf()
-		plt.hist(self.membrane_contacts,bins=range(1,self.N+1),edgecolor='black',align='left')
+		print "!!!", self.membrane_contacts
+		plt.hist(self.membrane_contacts,edgecolor='black',align='left')
+		#plt.hist(self.membrane_contacts,bins=range(1,self.N+1),edgecolor='black',align='left')
 		plt.savefig(outdir+"contacts" + name_mod + ".png")
 

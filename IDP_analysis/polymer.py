@@ -68,7 +68,7 @@ class polymer:
 			return (3.0/(2*np.pi*R**2))**(3.0/2.0) * np.exp(-1.5*((rL-a)/R)**2)
 		#---EED
 		plt.clf()
-		n, bins, patches = plt.hist(EED, 100)
+		n, bins, patches = plt.hist(EED, 20)
 		nbins = [(bins[b]+bins[b+1])/2 for b in range(len(bins)-1)]
 		popt, pcov = curve_fit(pdf, nbins, n)
 		plt.plot(nbins, pdf(nbins, *popt), 'r-')
@@ -77,7 +77,7 @@ class polymer:
 	
 		#--- Rg
 		plt.clf()
-		n, bins, patches = plt.hist(Rg, 100)
+		n, bins, patches = plt.hist(Rg, 20)
 		nbins = [(bins[b]+bins[b+1])/2 for b in range(len(bins)-1)]
 		popt, pcov = curve_fit(pdf, nbins, n)
 		plt.plot(nbins, pdf(nbins, *popt), 'r-')

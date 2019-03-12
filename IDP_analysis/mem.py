@@ -1,5 +1,8 @@
 from lib_handler import np, md, plt
 """
+
+DISCONTINUED
+
 This script is in terrible shape. It's currently a group of
 functions sitting in a class. It needs to be made into a 
 proper, useful object.
