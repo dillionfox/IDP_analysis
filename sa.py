@@ -1,6 +1,8 @@
 from IDP_analysis import lib_handler
 from IDP_analysis.sa_mem import contacts
-from IDP_analysis.sa_mem import mem_analysis
+from IDP_analysis.sa_mem import curvature
+from IDP_analysis.sa_mem import lipid_analysis
+from IDP_analysis.sa_mem import MASA
 from IDP_analysis.rama import rama
 from IDP_analysis.sa_core import sa_core 
 from IDP_analysis.sa_traj import sa_traj
@@ -57,25 +59,32 @@ md = lib_handler.md
 np = lib_handler.np
 os = lib_handler.os
 
-class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,mem_analysis):
+class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,curvature,lipid_analysis,MASA):
 
 	#---Every known calculation
 	known_calcs = ['Rg', 'SASA', 'EED', 'Asph', 'rama', 'cmaps', 'PCA', 'gcmaps',\
 			'XRg','SS', 'chain', 'score','flory', 'centroids', 'Gyr', \
 			'surface_contacts', 'rmsd', 'probe', 'MASA', 'calibur', \
 			'diffusion', 'contact_types', 'contact_residues', 'membrane_contacts',\
-			'area_per_lipid','persistence_length','membrane_analysis','av_heights']
+			'area_per_lipid','persistence_length','membrane_analysis','av_heights',\
+			'lipid_phase_transition']
 
 	#---Calculations that depend on each other
 	deps = {'Rg':['Gyr'], 'Asph':['Gyr'], 'surface_contacts':['SASA'],\
 			'contact_residues':['cmaps'], 'contact_types':['cmaps'],\
-			'PCA':['Gyr','Rg','SASA','EED','Asph'],'chain':['Gyr','Rg','EED']}
+			'PCA':['Gyr','Rg','SASA','EED','Asph'],'chain':['Gyr','Rg','EED'],\
+			}
 
 	#---Every known post-analysis function
 	post_analysis = ['Rg', 'cmaps', 'gcmaps', 'surface_contacts', 'SS' , 'PCA',\
 			'flory', 'chain', 'centroids', 'rama', 'MASA', 'diffusion',\
 			 'contact_residues', 'contact_types', 'membrane_contacts',\
 			'membrane_analysis','av_heights']
+
+	traj_master_list = ['rmsd','calibur','probe','persistence_length','membrane_analysis']
+
+	precalcs_master_list = ['membrane_contacts','membrane_analysis','av_heights','area_per_lipid',\
+			'lipid_phase_transition']
 
 	def __init__(self, trajname, top='NULL', name_mod='', outdir='', calcs=[]):
 		"""
@@ -90,12 +99,16 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,mem_analysis):
 		pca.__init__(self)
 		sa_traj.__init__(self)
 		contacts.__init__(self)
-		mem_analysis.__init__(self,outdir)
+		curvature.__init__(self,outdir)
+		lipid_analysis.__init__(self,outdir,name_mod)
+		MASA.__init__(self,outdir)
 
 		# pertinent info
 		self.trajname = trajname	# store name of trajectory
 		self.calcs = np.array(calcs)	# list of calculations to perform at run time
 		self.analysis = []		# list of post-processing functions to be run
+		self.traj_list = np.array([])	# list of calcs that require whole trajectory
+		self.precalcs_list = np.array([])# list of calculations that run before looping through frames
 		self.outdir = outdir		# directory to write output to
 		self.plot_only = False		# only load data and run analysis
 		self.name_mod = name_mod	# several functions are reused, so this name differentiates them
@@ -107,6 +120,7 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,mem_analysis):
 		self.top = top			# store topology (pdb, only needed if traj is compressed)
 		self.first_frame = 0            # 
 		self.last_frame = -1            # NEEDS TO BE FIXED!!
+		self.skip_frames = 1		# skip this many frames
 		self.nframes = -1		# number of frames in trajectory
 		self.nres = -1			# number of residues in structure
 		self.scores = []		# list of scores from Rosetta with global index: [ind, score]
@@ -171,6 +185,12 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,mem_analysis):
 			#---Add post-processing funcitons
 			if c in SA.post_analysis:
 				self.analysis.append(c)
+			# Pull out functions that don't need to be iterated through individually
+			if c in SA.traj_master_list:
+				self.traj_list = np.append(self.traj_list,c)
+				self.calcs = self.calcs[np.where(self.calcs != c)]
+			if c in SA.precalcs_master_list:
+				self.precalcs_list = np.append(self.precalcs_list,c)
 		analysis_only = ['chain']
 		for c in self.calcs:
 			if c in analysis_only:
@@ -392,17 +412,28 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,mem_analysis):
 	##################################
 	### Run requested calculations ###
 	##################################
-	def precalcs(self,struc):
+	def precalcs(self,traj):
 		"""
 		Things that only need to be computed once at the beginning of a calculation
 
+		'membrane_contacts':self.contacts_precalcs(struc)
+		'membrane_analysis':self.make_ndx(self.tpr)
+		'av_heights':self.heights_precalcs(struc)
+
 		"""
-		if 'membrane_contacts' in self.calcs:
-			self.contacts_precalcs(struc)
-		if 'membrane_analysis' in self.calcs:
+		print "Running Precalcs", self.precalcs_list
+		if 'membrane_contacts' in self.precalcs_list:
+			self.contacts_precalcs(traj[0])
+		if 'membrane_analysis' in self.precalcs_list:
 			self.make_ndx(self.tpr)
-		if 'av_heights' in self.calcs:
-			self.heights_precalcs(struc)
+		if 'av_heights' in self.precalcs_list:
+			self.heights_precalcs(traj[0])
+			self.lipid_mesh(traj)
+		if 'area_per_lipid' in self.precalcs_list:
+			self.apl_precalcs(traj)
+		if 'lipid_phase_transition' in self.precalcs_list:
+			self.lipid_phase_transition(traj[0])
+		return None
 
 	def protein_calcs(self,struc):
 		"""
@@ -440,20 +471,25 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,mem_analysis):
 			self.scmaps.append(self.surface_contacts(struc,SASA))
 		return None
 
-	def membrane_calcs(self,struc):
+	def membrane_calcs(self,struc,fr):
 		"""
 		Separate function for membrane calcs, which require all atoms, not just protein
 
+		'MASA':self.MASA.append(mem.MASA(struc))
+		'membrane_contacts':self.compute_contacts(struc)
+		'area_per_lipid':self.compute_area_per_lipid(struc)
+		'av_heights':self.heights(struc,fr)
+
 		"""
 		if 'MASA' in self.calcs:
-			self.MASA.append(mem.MASA(struc))
+			self.compute_MASA(struc,fr)
 		if 'membrane_contacts' in self.calcs:
 			if not self.plot_only:
 				self.compute_contacts(struc)
 		if 'area_per_lipid' in self.calcs:
-			self.compute_area_per_lipid(struc)
+			self.compute_area_per_lipid(struc,fr)
 		if 'av_heights' in self.calcs:
-			self.heights(struc)
+			self.heights(struc,fr)
 		return None
 
 	def diffusion(self,fr):
@@ -477,11 +513,12 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,mem_analysis):
 		Calculations that require all frames at once
 
 		"""
-		if 'rmsd' in self.calcs:
+		print "Running", self.traj_list
+		if 'rmsd' in self.traj_list:
 			self.RMSD(traj)
-		if 'calibur' in self.calcs:
+		if 'calibur' in self.traj_list:
 			self.calibur(traj,self.outdir)
-		if 'probe' in self.calcs:
+		if 'probe' in self.traj_list:
 			skip_frames = 1
 			first_frame = 0
 			last_frame = 'last'
@@ -489,11 +526,11 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,mem_analysis):
 			cutoff = 5
 			probe_radius = 1.0
 			mem.interface_probe(self.top,self.trajname,skip_frames,first_frame,last_frame,nthreads,cutoff,probe_radius,self.seq)
-		if 'persistence_length' in self.calcs:
+		if 'persistence_length' in self.traj_list:
 			self.persistence_length(traj)
-		if 'membrane_analysis' in self.calcs:
-			self.gmx_density(self.trajname,self.tpr)
-			self.gmx_order(self.trajname,self.tpr)
+		if 'membrane_analysis' in self.traj_list:
+			self.gmx_density(self.trajname,self.tpr,self.OVERWRITE,self.first_frame,self.last_frame)
+			self.gmx_order(self.trajname,self.tpr,self.OVERWRITE,self.first_frame,self.last_frame)
 		return None
 
 	def post_process(self):
@@ -541,11 +578,13 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,mem_analysis):
 			self.contact_types(av_cmaps,self.seq,self.nframes)
 		if 'membrane_contacts' in self.analysis:
 			self.plot_contact_hist(self.outdir,self.name_mod)
-		if 'area_per_lipid' in self.calcs:
-			with open(self.outdir+"area_per_lipid" + self.name_mod + ".txt",'a') as f:
-				f.write(str(np.mean(np.array(self.area_per_lipid)))+"\n")
+		#if 'area_per_lipid' in self.calcs:
+		#	with open(self.outdir+"area_per_lipid" + self.name_mod + ".txt",'a') as f:
+		#		f.write(str(self.area_per_lipid)+"\n")
 		if 'av_heights' in self.analysis:
 			self.normalize_heights()
+		if 'membrane_analysis' in self.analysis:
+			self.plot_order()
 		return None
 
 	#####################
@@ -579,10 +618,10 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,mem_analysis):
 			print "OVERWRITING OLD DATA!"
 
 		#---Print log of tasks left to complete
-		print "calculations left to do:", self.calcs
+		print "calculations left to do:", self.calcs,self.traj_list
 
 		#---Decide if it's necessary to load trajectories/PDBs
-		if len(self.calcs) == 0: LOAD = False
+		if len(self.calcs) == 0 and len(self.traj_list) == 0: LOAD = False
 		else: LOAD = True
 
 		#---Run the code
@@ -607,28 +646,32 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,mem_analysis):
 						self.struc_info(md.load(self.top),nlines)
 						traj = open(self.trajname)
 					#---Pre-calculate some things to avoid computing multiple times
-					if traj_ext != 'txt':
-						self.precalcs(traj[0])
+					if traj_ext != 'txt' and len(self.precalcs_list) > 0:
+						self.precalcs(traj)
 					#---Only load the necessary frames
 					if self.last_frame != -1:
 						traj = traj[self.first_frame:self.last_frame]
+					if self.skip_frames != 1:
+						traj = traj[::self.skip_frames]
 					#---Calculations done on trajectory all at once
-					self.traj_calcs(traj)
+					if len(self.traj_list) > 0:
+						self.traj_calcs(traj)
 					#---Frame-by-frame calculations
-					for fr_,struc in enumerate(traj):
-						if self.verbose:
-							print "frame", fr_, "of", len(traj)
-						#---If .txt, then the structures have to be loaded one-by-one
-						if traj_ext == 'txt': struc = md.load(struc.split("\n")[0])
-						#---Many calculations only require protein coordinates
-						if self.protein_analysis:
-							prot = struc.atom_slice(struc.topology.select('protein'))[0]
-							#---Run calculations that only require protein coordinates
-							self.protein_calcs(prot)
-						#---Run calculations requiring protein, lipid, and water coordinates
-						self.membrane_calcs(struc)
-						#---Special case: protein and water coordinates
-						self.diffusion(fr_)
+					if len(self.calcs) > 0:
+						for fr_,struc in enumerate(traj):
+							if self.verbose:
+								print "frame", fr_, "of", len(traj)
+							#---If .txt, then the structures have to be loaded one-by-one
+							if traj_ext == 'txt': struc = md.load(struc.split("\n")[0])
+							#---Many calculations only require protein coordinates
+							if self.protein_analysis:
+								prot = struc.atom_slice(struc.topology.select('protein'))[0]
+								#---Run calculations that only require protein coordinates
+								self.protein_calcs(prot)
+							#---Run calculations requiring protein, lipid, and water coordinates
+							self.membrane_calcs(struc,fr_)
+							#---Special case: protein and water coordinates
+							self.diffusion(fr_)
 				#---Write data
 				self.write_data()
 
