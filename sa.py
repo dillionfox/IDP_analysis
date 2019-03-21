@@ -52,6 +52,7 @@ Finally, another script on my github account can be found that uses this class t
 20 Monte Carlo trajectories of different sequences. See "campari_analyze.py" and "campari_post.py" for
 ideas of how this can be used.
 
+
 """
 
 # access previously imported libraries
