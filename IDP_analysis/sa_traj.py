@@ -1,7 +1,9 @@
 from lib_handler import np, md, plt, os
+from diff import diff
 
-class sa_traj:
+class sa_traj(diff):
 	def __init__(self):
+		diff.__init__(self)
 		self.traj = None
 		self.rmsd = None
 

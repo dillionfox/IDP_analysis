@@ -1,16 +1,7 @@
-from IDP_analysis import lib_handler
-from IDP_analysis.sa_mem import contacts
-from IDP_analysis.sa_mem import curvature
-from IDP_analysis.sa_mem import lipid_analysis
-from IDP_analysis.sa_mem import MASA
-from IDP_analysis.rama import rama
-from IDP_analysis.sa_core import sa_core 
+from IDP_analysis import sa_core
+from IDP_analysis.sa_prot import sa_prot
+from IDP_analysis.sa_mem  import sa_mem
 from IDP_analysis.sa_traj import sa_traj
-from IDP_analysis.polymer import polymer
-from IDP_analysis.diff import diff
-from IDP_analysis.pca import pca
-from IDP_analysis import kmeans_clusters
-from IDP_analysis import messages
 
 """
 			################################
@@ -56,11 +47,11 @@ ideas of how this can be used.
 """
 
 # access previously imported libraries
-md = lib_handler.md
-np = lib_handler.np
-os = lib_handler.os
+md = sa_core.md
+np = sa_core.np
+os = sa_core.os
 
-class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,curvature,lipid_analysis,MASA):
+class SA(sa_prot,sa_traj,sa_mem):
 
 	#---Every known calculation
 	known_calcs = ['Rg', 'SASA', 'EED', 'Asph', 'rama', 'cmaps', 'PCA', 'gcmaps',\
@@ -92,20 +83,12 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,curvature,lipid_analysis
 		Create class objects. Keep most of them empty so they can be populated as the code progresses.
 
 		"""
-		# inherit classes
-		sa_core.__init__(self)
-		rama.__init__(self)
-		polymer.__init__(self)
-		diff.__init__(self)
-		pca.__init__(self)
+		#---Inherit classes
+		sa_prot.__init__(self)
 		sa_traj.__init__(self)
-		contacts.__init__(self)
-		curvature.__init__(self,outdir)
-		lipid_analysis.__init__(self,outdir,name_mod)
-		MASA.__init__(self,outdir)
+		sa_mem.__init__(self,outdir,name_mod)
 
-		# pertinent info
-		self.trajname = trajname	# store name of trajectory
+		#---Run time options
 		self.calcs = np.array(calcs)	# list of calculations to perform at run time
 		self.analysis = []		# list of post-processing functions to be run
 		self.traj_list = np.array([])	# list of calcs that require whole trajectory
@@ -117,21 +100,21 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,curvature,lipid_analysis
 		self.verbose = False		# extra print statements
 		self.mode = 'default'		# more than one way to run this code: default, cluster, score (rosetta)
 
-		# structural info
+		#---Structural info
+		self.trajname = trajname	# store name of trajectory
 		self.top = top			# store topology (pdb, only needed if traj is compressed)
 		self.first_frame = 0            # 
 		self.last_frame = -1            # NEEDS TO BE FIXED!!
 		self.skip_frames = 1		# skip this many frames
 		self.nframes = -1		# number of frames in trajectory
 		self.nres = -1			# number of residues in structure
-		self.scores = []		# list of scores from Rosetta with global index: [ind, score]
-		self.ros_frames = -1		# number of "top score" structures to look at. defined with class call (not internal to class)
-		self.score_file = ''		# path to Rosetta score file.
 		self.protein_analysis = True	# sometimes I run calculations on membrane-only systems
 		self.tpr = None			# some membrane analysis calculations (order, density) require gmx make_ndx 
 
-		# added
-		self.MASA = []
+		#---Rosetta
+		self.scores = []		# list of scores from Rosetta with global index: [ind, score]
+		self.ros_frames = -1		# number of "top score" structures to look at. defined with class call (not internal to class)
+		self.score_file = ''		# path to Rosetta score file.
 
 	##################################################################
 	### Load basic information about the structures being analyzed ###
@@ -347,10 +330,8 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,curvature,lipid_analysis
 			for struc in dcd:
 				self.protein_calcs(struc)
 			if 'cmaps' in self.calcs:
-				#@#@# sa_core --> self
 				self.av_cmaps(self.cmaps,self.nres,self.seq,self.outdir,self.name_mod,"NULL")
 			if 'SS' in self.calcs:
-				#@#@# sa_core --> self
 				self.av_SS(self.SS)
 			if 'flory' in self.calcs:
 				self.flory_hist()
@@ -506,7 +487,6 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,curvature,lipid_analysis
 			if fr>0:
 				for ri in range(1,len(self.R_list)):
 					self.diff_data[fr-1][ri] = self.D_shells(struc,struc_0,self.R_list[ri-1],self.R_list[ri])
-
 		return None
 
 	def traj_calcs(self,traj):
@@ -519,14 +499,6 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,curvature,lipid_analysis
 			self.RMSD(traj)
 		if 'calibur' in self.traj_list:
 			self.calibur(traj,self.outdir)
-		if 'probe' in self.traj_list:
-			skip_frames = 1
-			first_frame = 0
-			last_frame = 'last'
-			nthreads = 1
-			cutoff = 5
-			probe_radius = 1.0
-			mem.interface_probe(self.top,self.trajname,skip_frames,first_frame,last_frame,nthreads,cutoff,probe_radius,self.seq)
 		if 'persistence_length' in self.traj_list:
 			self.persistence_length(traj)
 		if 'membrane_analysis' in self.traj_list:
@@ -549,8 +521,6 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,curvature,lipid_analysis
 			except: print "grem CMAPS didnt work"
 		if 'surface_contacts' in self.analysis:
 			self.av_cmaps(self.scmaps,self.nres,self.seq,self.outdir,self.name_mod,"surface")
-			#try: self.av_cmaps(self.scmaps,"surface")
-			#except: print "surface CMAPS didnt work"
 		if 'SS' in self.analysis:
 			self.av_SS(self.SS,self.outdir,self.name_mod) ; return 0
 			try: self.av_SS(self.SS,self.outdir,self.name_mod)
@@ -567,8 +537,6 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,curvature,lipid_analysis
 			self.cluster_centroids()
 		if 'rama' in self.analysis:
 			self.rama(self.dihedrals,self.outdir,self.name_mod)
-		if 'MASA' in self.analysis:
-			mem.plot_masa(np.array(self.MASA),self.seq,self.trajname.split(".")[0]) 
 		if 'diffusion' in self.analysis:
 			D = np.mean(np.array(self.diff_data).T,axis=1)[1:]
 			R = [(self.R_list[i]+self.R_list[i-1])/2. for i in range(1,len(self.R_list))]
@@ -579,9 +547,6 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,curvature,lipid_analysis
 			self.contact_types(av_cmaps,self.seq,self.nframes)
 		if 'membrane_contacts' in self.analysis:
 			self.plot_contact_hist(self.outdir,self.name_mod)
-		#if 'area_per_lipid' in self.calcs:
-		#	with open(self.outdir+"area_per_lipid" + self.name_mod + ".txt",'a') as f:
-		#		f.write(str(self.area_per_lipid)+"\n")
 		if 'av_heights' in self.analysis:
 			self.normalize_heights()
 		if 'membrane_analysis' in self.analysis:
@@ -603,7 +568,7 @@ class SA(sa_core,rama,polymer,diff,pca,sa_traj,contacts,curvature,lipid_analysis
 		global traj_ext ; traj_ext = self.trajname.split('.')[-1]
 
 		#---Print Header
-		messages.header()
+		sa_core.header()
 
 		#---Code can currently be run in two modes: default, and 'score' mode
 		self.mode = mode
@@ -696,16 +661,16 @@ if __name__ == "__main__":
 			PDB_list = sys.argv[1]
 			sa = SA(PDB_list,'','_test','test',['MASA'])
 		else:
-			messages.usage()
+			sa_core.usage()
 	elif len(sys.argv) == 3:
 		if sys.argv[1].split('.')[1] in ['dcd', 'xtc'] and sys.argv[2].split('.')[1] in ['pdb', 'gro']:
 			traj = sys.argv[1]
 			top = sys.argv[2]
 			sa = SA(traj,top,'test','test_traj/',['Rg'])
 		else:
-			messages.usage()
+			sa_core.usage()
 	else:
-		messages.usage()
+		sa_core.usage()
 
 	sa.overwrite()
 	sa.run()
