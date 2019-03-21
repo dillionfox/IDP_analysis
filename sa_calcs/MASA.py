@@ -1,4 +1,4 @@
-from lib_handler import np, md, plt
+from utils import np, md, plt
 
 ATOMIC_RADII = {'H'   : 0.120, 'He'  : 0.140, 'Li'  : 0.076, 'Be' : 0.059, 
                  'B'   : 0.192, 'C'   : 0.170, 'N'   : 0.155, 'O'  : 0.152, 

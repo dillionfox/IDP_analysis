@@ -30,6 +30,8 @@ asphericity, end-to-end distance, solvent accessible surface area, etc.
 We can get a lot of leverage out of these quantities if we have 
 enough structures to compute decent statistics. 
 
+I also added some membrane analysis functions that may be useful.
+
 So, I mainly use this platform to:
 	1. Compute Principle Component Analysis to characterize a 
 	distribution of structures
@@ -37,6 +39,8 @@ So, I mainly use this platform to:
 	exponent
 	3. Analyze the surface chemistry of the protein using the
 	"surface contacts" function
+	4. Analyze protein-membrane interactions and membrane
+	remodeling
 
 I included several scripts that demonstrate how I use the code in my
 research (located in the *example_wrappers* directory). I believe

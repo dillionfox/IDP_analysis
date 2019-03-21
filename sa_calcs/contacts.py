@@ -1,4 +1,4 @@
-from lib_handler import np, md, plt
+from utils import np, md, plt
 
 three_to_one = {'CYS': 'C', 'ASP': 'D', 'SER': 'S', 'GLN': 'Q', 'LYS': 'K',
      'ILE': 'I', 'PRO': 'P', 'THR': 'T', 'PHE': 'F', 'ASN': 'N', 

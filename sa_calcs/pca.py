@@ -1,4 +1,4 @@
-from lib_handler import np, plt
+from utils import np, plt
 
 """
 run_PCA(EED,Rg,SASA,Asph,outdir,name_mod,mode,scores,trajname,ros_frames): None

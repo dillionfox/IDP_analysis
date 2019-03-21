@@ -1,4 +1,4 @@
-from lib_handler import np, md, plt
+from utils import np, md, plt
 
 scale = 2
 hg_atoms = 'resname DMPC and not type H'

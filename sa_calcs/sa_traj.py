@@ -1,19 +1,35 @@
-from lib_handler import np, md, plt, os
+from utils import np, md, plt, os
 from diff import diff
 
 class sa_traj(diff):
-	def __init__(self):
+	def __init__(self,trajname,top):
+		#---Structural info
+		self.trajname = trajname	# store name of trajectory
+		self.top = top			# store topology (pdb, only needed if traj is compressed)
+		self.first_frame = 0            # 
+		self.last_frame = -1            # NEEDS TO BE FIXED!!
+		self.skip_frames = 1		# skip this many frames
+		self.nframes = -1		# number of frames in trajectory
+		self.nres = -1			# number of residues in structure
+		self.protein_analysis = True	# sometimes I run calculations on membrane-only systems
+		self.tpr = None			# some membrane analysis calculations (order, density) require gmx make_ndx 
 		diff.__init__(self)
 		self.traj = None
 		self.rmsd = None
 
-	def traj_calcs(self,traj):
-		self.traj = traj
-		if 'rmsd' in self.calcs:
-			self.rmsd = self.RMSD()
-			plt.plot(self.rmsd)
-			np.savetxt(self.outdir+"rmsd" + self.name_mod + ".npy",self.rmsd)
-			plt.savefig(self.outdir+"rmsd" + self.name_mod + ".png")
+	def diffusion(self,fr,calcs):
+		"""
+		Separate function for diffusion calcs which require protein+water
+
+		"""
+		if 'diffusion' in calcs:
+			struc = traj[fr_] ; struc_0 = traj[fr_-1] ; N = len(traj)
+			# only start on second frame
+			if self.diff_data == []:
+                        	self.diff_data = np.zeros((N-1,len(self.R_list)))		
+			if fr>0:
+				for ri in range(1,len(self.R_list)):
+					self.diff_data[fr-1][ri] = self.D_shells(struc,struc_0,self.R_list[ri-1],self.R_list[ri])
 		return None
 
 	def RMSD(self,traj):

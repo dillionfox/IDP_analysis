@@ -1,4 +1,4 @@
-from lib_handler import np, md, plt, LogNorm
+from utils import np, md, plt, LogNorm
 
 """
 def compute_phipsi(struc): dihedrals
