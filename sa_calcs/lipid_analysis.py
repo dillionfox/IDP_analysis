@@ -21,17 +21,33 @@ class lipid_analysis:
 		self.ndx_chain = self.outdir+'chain1.ndx'
 		self.order_file = self.outdir+'order'+self.name_mod+'.xvg'
 		self.density_file = self.outdir+'density'+self.name_mod+'.xvg'
+		self.interdigitation = None
+
+	def lipid_phase_transition(self,traj):
+		sel_ind = traj.topology.select('resname DMPC and name 4C31')
+		sel = traj.atom_slice(sel_ind)
+		coors = sel.xyz
+		table, bonds = sel.topology.to_dataframe()
+		lipid_ids = [i for i in table['resSeq']]
+		n_lipids = len(lipid_ids)
+		upper_leaflet = np.mean(coors[:,:n_lipids/2].T[2],axis=0)
+		lower_leaflet = np.mean(coors[:,n_lipids/2:].T[2],axis=0)
+		self.interdigitation = upper_leaflet-lower_leaflet
+		return None
 
 	def make_ndx(self, tpr):
 		if not os.path.isfile(self.ndx):
 			print "Creating", self.ndx
 			trjconv = subprocess.Popen(['gmx','make_ndx','-f',tpr,'-o',self.ndx],stdin=subprocess.PIPE,stdout=subprocess.PIPE)
-			trjconv.communicate(b'13 & a C21 | a C22 | a C23 | a C24 | a C25 | a C26 | a C27 | a C28 | a C29 | a C210 | a C211 | a C212 | a C213 | a C214\nname 17 chain1\n13 & a C31 | a C32 | a C33 | a C34 | a C35 | a C36 | a C37 | a C38 | a C39 | a C310 | a C311 | a C312 | a C313 | a C314\nname 18 chain2\nq\n')
+			trjconv.communicate(b'13 & a C21 | a C22 | a C23 | a C24 | a C25 | a C26 | a C27 | a C28 | a C29 | a C210 | a C211 \
+				| a C212 | a C213 | a C214\nname 17 chain1\n13 & a C31 | a C32 | a C33 | a C34 | a C35 | a C36 | a C37 \
+				| a C38 | a C39 | a C310 | a C311 | a C312 | a C313 | a C314\nname 18 chain2\nq\n')
 			trjconv.wait()
 		if not os.path.isfile(self.ndx_chain):
 			print "Creating", self.ndx_chain
 			trjconv = subprocess.Popen(['gmx','make_ndx','-f',tpr,'-o',self.ndx_chain],stdin=subprocess.PIPE,stdout=subprocess.PIPE)
-			trjconv.communicate(b'13 & a C21\n 13 & a C22\n 13 & a C23\n 13 & a C24\n 13 & a C25\n 13 & a C26\n 13 & a C27\n 13 & a C28\n 13 & a C29\n 13 & a C210\n 13 & a C211\n 13 & a C212\n 13 & a C213\n 13 & a C214\n\ndel 0-16\nq\n')
+			trjconv.communicate(b'13 & a C21\n 13 & a C22\n 13 & a C23\n 13 & a C24\n 13 & a C25\n 13 & a C26\n 13 & a C27\n\
+				 13 & a C28\n 13 & a C29\n 13 & a C210\n 13 & a C211\n 13 & a C212\n 13 & a C213\n 13 & a C214\n\ndel 0-16\nq\n')
 			trjconv.wait()
 		return None
 
@@ -90,12 +106,3 @@ class lipid_analysis:
 				plt.savefig(self.outdir+'lipid_density'+self.name_mod+'.png')
 		return None
 
-	def lipid_phase_transition(self,struc):
-		sel_ind = struc.topology.select('resname DMPC and name 4C31')
-		sel = struc.atom_slice(sel_ind)
-		table, bonds = sel.topology.to_dataframe()
-		self.lipid_ids = [i for i in table['resSeq']]
-		self.n_lipids = len(self.lipid_ids)
-		upper_leaflet = self.lipid_ids[:self.n_lipids/2]
-		lower_leaflet = self.lipid_ids[self.n_lipids/2:]
-		print upper_leaflet, lower_leaflet

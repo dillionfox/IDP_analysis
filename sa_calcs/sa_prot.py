@@ -12,6 +12,11 @@ class sa_prot(prot_geo,polymer,rama,pca):
 		rama.__init__(self)
 		pca.__init__(self)
 
+		#---Rosetta
+		self.scores = []		# list of scores from Rosetta with global index: [ind, score]
+		self.ros_frames = -1		# number of "top score" structures to look at. defined with class call (not internal to class)
+		self.score_file = ''		# path to Rosetta score file.
+
 	def struc_info(self,struc,nframes):
 		"""
 		Extract basic information about the structure, i.e. sequence, number of residues

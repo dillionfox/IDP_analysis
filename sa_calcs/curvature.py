@@ -87,7 +87,6 @@ class curvature:
 		table, bonds = sel.topology.to_dataframe()
 		self.lipid_ids = [i for i in table['resSeq']]
 		self.n_lipids = len(self.lipid_ids)
-		#self.lipid_ids = self.lipid_ids[:self.n_lipids/2] # upper leaflet only
 		self.nx = scale*int(np.ceil(struc.unitcell_lengths[0][0]))
 		self.ny = scale*int(np.ceil(struc.unitcell_lengths[0][1]))
 		self.av_heights = np.zeros((self.nx,self.ny))

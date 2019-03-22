@@ -51,6 +51,6 @@ class sa_mem(MASA, lipid_analysis, curvature, contacts):
 			self.lipid_mesh(traj)
 		if 'area_per_lipid' in precalcs_list:
 			self.apl_precalcs(traj)
-		if 'lipid_phase_transition' in precalcs_list:
-			self.lipid_phase_transition(traj[0])
+		if 'interdigitation' in precalcs_list:
+			self.lipid_phase_transition(traj)
 		return None

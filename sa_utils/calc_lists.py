@@ -12,7 +12,7 @@ class calc_lists:
 				'surface_contacts', 'rmsd', 'probe', 'MASA', 'calibur', \
 				'diffusion', 'contact_types', 'contact_residues', 'membrane_contacts',\
 				'area_per_lipid','persistence_length','membrane_analysis','av_heights',\
-				'lipid_phase_transition']
+				'interdigitation']
 
 		#---Calculations that depend on each other
 		self.deps = {'Rg':['Gyr'], 'Asph':['Gyr'], 'surface_contacts':['SASA'],\
@@ -26,7 +26,8 @@ class calc_lists:
 				 'contact_residues', 'contact_types', 'membrane_contacts',\
 				'membrane_analysis','av_heights']
 
-		self.traj_master_list = ['rmsd','calibur','probe','persistence_length','membrane_analysis']
+		self.traj_master_list = ['rmsd','calibur','probe','persistence_length','membrane_analysis',\
+				'interdigitation']
 
 		self.precalcs_master_list = ['membrane_contacts','membrane_analysis','av_heights','area_per_lipid',\
-				'lipid_phase_transition']
+				'interdigitation']

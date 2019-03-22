@@ -29,7 +29,7 @@ class SA(sa_prot,sa_traj,sa_mem,calc_manager):
 
 	def __init__(self, trajname, top='NULL', name_mod='', outdir='', calcs=[]):
 		"""
-		Create class objects
+		Instantiate class objects
 
 		"""
 		#---Inherit classes
@@ -37,11 +37,6 @@ class SA(sa_prot,sa_traj,sa_mem,calc_manager):
 		sa_traj.__init__(self,trajname,top)			# store trajectory info and some methods that require entire trajectory
 		sa_prot.__init__(self)					# main protein attributes and calculations
 		sa_mem.__init__(self,outdir,name_mod)			# main membrane attributes and calculations
-
-		#---Rosetta. Will probably write this out soon.
-		self.scores = []		# list of scores from Rosetta with global index: [ind, score]
-		self.ros_frames = -1		# number of "top score" structures to look at. defined with class call (not internal to class)
-		self.score_file = ''		# path to Rosetta score file.
 
 	##################################################################
 	### Load basic information about the structures being analyzed ###
@@ -52,7 +47,8 @@ class SA(sa_prot,sa_traj,sa_mem,calc_manager):
 
 		"""
 		#---Load data
-		for c in ['Rg', 'EED', 'Asph', 'SASA', 'cmaps', 'gcmaps', 'rama', 'MASA', 'diffusion', 'flory', 'rmsd', 'membrane_contacts','av_heights']:
+		for c in ['Rg', 'EED', 'Asph', 'SASA', 'cmaps', 'gcmaps', 'rama', 'MASA', 'diffusion', 'flory', 'rmsd',\
+				'membrane_contacts','av_heights','interdigitation']:
 			if c in self.calcs and os.path.isfile(self.outdir+c+self.name_mod+file_ext):
 				print 'loading data for', c, self.outdir+c+self.name_mod+file_ext
 				self.__dict__[c] = np.loadtxt(self.outdir+c+self.name_mod+file_ext)
@@ -96,8 +92,10 @@ class SA(sa_prot,sa_traj,sa_mem,calc_manager):
 		to be recomputed
 
 		"""
-		for c in ['Rg', 'EED', 'Asph', 'SASA', 'rama', 'diffusion', 'flory', 'rmsd', 'membrane_contacts','area_per_lipid','av_heights']:
-			if c in self.calcs:
+		for c in ['Rg', 'EED', 'Asph', 'SASA', 'rama', 'diffusion', 'flory', 'rmsd', 'membrane_contacts',\
+				'area_per_lipid','av_heights','interdigitation']:
+			if c in self.calcs or c in self.precalcs_list:
+				print "Writing data for", c
 				np.savetxt(self.outdir+c+self.name_mod+file_ext,self.__dict__[c])
 		return None
 
