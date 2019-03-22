@@ -32,7 +32,7 @@ class sa_mem(MASA, lipid_analysis, curvature, contacts):
 			self.heights(struc,fr)
 		return None
 
-	def precalcs(self,traj,precalcs_list):
+	def mem_precalcs(self,traj,precalcs_list):
 		"""
 		Things that only need to be computed once at the beginning of a calculation
 
@@ -46,6 +46,8 @@ class sa_mem(MASA, lipid_analysis, curvature, contacts):
 			self.contacts_precalcs(traj[0])
 		if 'membrane_analysis' in precalcs_list:
 			self.make_ndx(self.tpr)
+			self.gmx_density(self.trajname,self.tpr,self.overwrite,self.first_frame,self.last_frame)
+			self.gmx_order(self.trajname,self.tpr,self.overwrite,self.first_frame,self.last_frame)
 		if 'av_heights' in precalcs_list:
 			self.heights_precalcs(traj[0])
 			self.lipid_mesh(traj)
@@ -54,3 +56,11 @@ class sa_mem(MASA, lipid_analysis, curvature, contacts):
 		if 'interdigitation' in precalcs_list:
 			self.lipid_phase_transition(traj)
 		return None
+
+	def mem_post_analysis(self,calcs):
+		if 'membrane_contacts' in calcs:
+			self.plot_contact_hist(self.outdir,self.name_mod)
+		if 'av_heights' in calcs:
+			self.normalize_heights()
+		if 'membrane_analysis' in calcs:
+			self.plot_order()

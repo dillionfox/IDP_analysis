@@ -32,6 +32,12 @@ class sa_traj(diff):
 					self.diff_data[fr-1][ri] = self.D_shells(struc,struc_0,self.R_list[ri-1],self.R_list[ri])
 		return None
 
+	def traj_post_analysis(self,calcs):
+		if 'diffusion' in calcs:
+			D = np.mean(np.array(self.diff_data).T,axis=1)[1:]
+			R = [(self.R_list[i]+self.R_list[i-1])/2. for i in range(1,len(self.R_list))]
+			self.plot_shells(R,D,self.outdir,self.name_mod)
+
 	def RMSD(self,traj):
 		"""
 		Use MDTraj to compute the RMSD relative to the first frame

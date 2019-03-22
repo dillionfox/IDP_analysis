@@ -31,6 +31,15 @@ class sa_prot(prot_geo,polymer,rama,pca):
 		self.nframes = nframes
 		return None
 
+	def protein_traj_calcs(self,traj,calcs):
+		if 'persistence_length' in calcs:
+			self.persistence_length(traj)
+		if 'rmsd' in self.calcs:
+			self.RMSD(traj)
+		if 'calibur' in self.calcs:
+			self.calibur(traj,self.outdir)
+		return None
+
 	def protein_calcs(self,struc,calcs):
 		coors = struc.xyz[0] 
 		CA_coors = struc.atom_slice(struc.topology.select('name CA'))[0].xyz[0]
@@ -60,6 +69,38 @@ class sa_prot(prot_geo,polymer,rama,pca):
 			self.dihedrals.append(self.compute_phipsi(struc))
 		if 'surface_contacts' in calcs:
 			self.scmaps.append(self.surface_contacts(struc,SASA))
+
+	def protein_post_analysis(self,calcs):
+		if 'Rg' in calcs:
+			self.plot_Rg(self.outdir,self.name_mod)
+		if 'cmaps' in calcs:
+			try: av_cmaps = self.av_cmaps(self.cmaps,self.nres,self.seq,self.outdir,self.name_mod,"NULL")
+			except: print "CMAPS didnt work"
+		if 'gcmaps' in calcs:
+			try: self.av_cmaps(self.gcmaps,self.nres,self.seq,self.outdir,self.name_mod,"gremlin")
+			except: print "grem CMAPS didnt work"
+		if 'surface_contacts' in calcs:
+			self.av_cmaps(self.scmaps,self.nres,self.seq,self.outdir,self.name_mod,"surface")
+		if 'SS' in calcs:
+			self.av_SS(self.SS,self.outdir,self.name_mod) ; return 0
+			try: self.av_SS(self.SS,self.outdir,self.name_mod)
+			except: print "SS didnt work" ; exit()
+		if 'PCA' in calcs:
+			self.run_PCA(self.EED,self.Rg,self.SASA,self.Asph,self.outdir,self.name_mod,self.mode,self.scores,self.trajname,self.ros_frames,calcs)
+		if 'flory' in calcs:
+			self.flory_hist(self.nres,self.outdir,self.name_mod)
+		if 'chain' in calcs:
+			#polymer.persistence_length_2(self.EED,self.outdir,self.name_mod)
+			polymer.gaussian_chain(self.EED,self.Rg,self.outdir,self.name_mod)
+			polymer.semiflexible_chain(self.EED,self.outdir,self.name_mod)
+		if 'centroids' in calcs:
+			self.cluster_centroids()
+		if 'rama' in calcs:
+			self.rama(self.dihedrals,self.outdir,self.name_mod)
+		if 'contact_residues' in calcs:
+			self.contact_residues(av_cmaps,self.seq,self.nframes)
+		if 'contact_types' in calcs:
+			self.contact_types(av_cmaps,self.seq,self.nframes)
 
 	def load_top(self):
 		"""
