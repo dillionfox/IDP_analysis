@@ -43,7 +43,7 @@ class SA(sa_prot,sa_traj,sa_mem,calc_manager,data_manager):
 		"""
 		self.mem_precalcs(traj,self.precalcs_list)
 
-	def frame_calcs(self,struc,fr):
+	def frame_calcs(self,traj,struc,fr):
 		"""
 		Calculations that are done frame-by-frame
 
@@ -51,8 +51,8 @@ class SA(sa_prot,sa_traj,sa_mem,calc_manager,data_manager):
 		if self.protein_analysis:
 			prot = struc.atom_slice(struc.topology.select('protein'))[0]
 			self.protein_calcs(prot,self.calcs)
+		self.diffusion(traj,self.calcs)
 		self.membrane_calcs(struc,fr,self.calcs)
-		self.diffusion(fr,self.calcs)
 		return None
 
 	def traj_calcs(self,traj):
@@ -61,6 +61,7 @@ class SA(sa_prot,sa_traj,sa_mem,calc_manager,data_manager):
 
 		"""
 		self.protein_traj_calcs(traj,self.traj_list)
+		self.electrostatic_maps(traj,self.traj_list)
 		return None
 
 	def post_process(self):
@@ -116,7 +117,7 @@ class SA(sa_prot,sa_traj,sa_mem,calc_manager,data_manager):
 				traj = open(self.trajname)
 			#---Pre-calculate some things to avoid computing multiple times
 			if traj_ext != 'txt' and len(self.precalcs_list) > 0:
-				self.precalcs(traj,self.precalcs_list)
+				self.precalcs(traj)
 			#---Only load the necessary frames
 			if self.last_frame != -1: traj = traj[self.first_frame:self.last_frame]
 			if self.skip_frames != 1: traj = traj[::self.skip_frames]
@@ -129,7 +130,7 @@ class SA(sa_prot,sa_traj,sa_mem,calc_manager,data_manager):
 					#---If .txt, then the structures have to be loaded one-by-one
 					if traj_ext == 'txt': struc = md.load(struc.split("\n")[0])
 					#---Run all frame-by-frame calculations
-					self.frame_calcs(struc,fr_)
+					self.frame_calcs(traj,struc,fr_)
 			#---Write data
 			self.write_data()
 		#---Code can be run in special mode where it references a Rosetta score file and only computes statistics on top N structures

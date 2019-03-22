@@ -1,5 +1,6 @@
 from utils import np, md, plt, os
 from diff import diff
+import emaps
 
 class sa_traj(diff):
 	def __init__(self,trajname,top):
@@ -17,7 +18,7 @@ class sa_traj(diff):
 		self.traj = None
 		self.rmsd = None
 
-	def diffusion(self,fr,calcs):
+	def diffusion(self,traj,fr,calcs):
 		"""
 		Separate function for diffusion calcs which require protein+water
 
@@ -30,6 +31,16 @@ class sa_traj(diff):
 			if fr>0:
 				for ri in range(1,len(self.R_list)):
 					self.diff_data[fr-1][ri] = self.D_shells(struc,struc_0,self.R_list[ri-1],self.R_list[ri])
+		return None
+
+	def electrostatic_maps(self,traj,calcs):
+		"""
+		This is super old code that hasn't been tested in years. It's here because I would
+		like to revamp it and include it here.
+
+		"""
+		if 'emaps' in calcs:
+			emaps.electrostatic_map(self.top,traj)
 		return None
 
 	def traj_post_analysis(self,calcs):

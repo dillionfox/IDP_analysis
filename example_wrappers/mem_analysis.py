@@ -7,16 +7,18 @@ if 'DISPLAY' not in os.environ:
 	mpl.use('Agg')
 import matplotlib.pyplot as plt
 
-TEST = True
+TEST = False
 PLOT_ONLY = False
 VERBOSE = True
-OVERWRITE = True
+OVERWRITE = False
 tpr_list = "mem_tpr.txt" 
 xtc_list = "mem_xtc.txt" 
 #tpr_list = "new_tpr.txt" 
 #xtc_list = "new_xtc.txt" 
-calcs = ["~rewrap", "run", "~contact_hist", "~Rg", "~SS"] # rewrap, run
-task = ["av_heights", "~membrane_analysis","~membrane_contacts","~chain","~flory","~area_per_lipid","~PCA","~SS","~Rg"]
+calcs = ["~rewrap", "run", "~interdigit","~contact_hist", "~Rg", "~SS"] # rewrap, run
+task = ["~MASA","~av_heights", "~membrane_analysis","~membrane_contacts",\
+		"~chain","~flory","~area_per_lipid","~PCA","~SS","~Rg",\
+		"~interdigitation","emaps"]
 outdir = "/home/dillion/Dropbox/Reflectin/interface/"
 global skip ; skip = 1000
 
@@ -94,6 +96,33 @@ def plot_contacts(base_name):
 				plt.subplots_adjust(left=0.15, right=0.9, top=0.9, bottom=0.1)
 				plt.savefig(outdir+name+'/membrane_contacts_all.png')
 				print "plotting", outdir+name+'/membrane_contacts_all.png'
+	return None
+
+def plot_interdigitation(base_name):
+	"""
+	This is super specific for this data set. Will need to modify to accommodate different
+	naming schemes.
+
+	"""
+	N = 6
+	seqs = ['QCNPFNQWSYNRHGCYPGYSYGRNMCY',\
+		'QCNPFSQYMNYYGRYWNYPGYNNYYNRNMSYP',\
+		'YNSPYWSNWYGRNMYNPCQNNQWYGR']
+
+	data = np.array([])
+	for n,name in enumerate(base_name):
+		fil = outdir+name+'/interdigitation_pbc400-500_raw.npy'
+		figname = outdir+name+"/"+fil.split('/')[-1].split('.')[0]+'_all.png'
+		if os.path.isfile(fil):
+			data_n = np.loadtxt(fil)
+			if n % N == 0:
+				plt.clf()
+			plt.plot(data_n,label=name)
+			if (n+1) % N == 0 and n > 1:
+				plt.subplots_adjust(left=0.15, right=0.9, top=0.9, bottom=0.15)
+				plt.legend()
+				plt.savefig(figname)
+				print "plotting", figname
 	return None
 
 def plot_Rg(base_name):
@@ -189,12 +218,13 @@ for xtc,tpr in zip(open(xtc_list), open(tpr_list)):
 		cat(name,simname)
 	if 'run' in calcs:
 		import sa
-		analysis = sa.SA(name[0]+'/traj'+simname+'.xtc', name[0]+'/traj'+simname+'.pdb', simname+'',outdir+name[0]+'/', task)
+		analysis = sa.SA(name[0]+'/traj'+simname+'.xtc', name[0]+'/traj'+simname+'.pdb', simname+'400-500',outdir+name[0]+'/', task)
 		analysis.tpr = tpr
-		analysis.first_frame = 1
+		analysis.first_frame = 400
 		analysis.last_frame = 500
+		#analysis.skip_frames = 100
 		if OVERWRITE:
-			analysis.overwrite()
+			analysis.overwrite = True
 		if PLOT_ONLY:
 			analysis.plot_only = True
 		if VERBOSE:
@@ -208,3 +238,5 @@ if 'Rg' in calcs:
 	plot_Rg(base_name)
 if 'SS' in calcs:
 	plot_SS(base_name)
+if 'interdigit' in calcs:
+	plot_interdigitation(base_name)
