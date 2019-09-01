@@ -16,7 +16,7 @@ class polymer:
 		self.flory = []			# Flory Exponent
 
 	@staticmethod
-	def persistence_length(traj):
+	def persistence_length(traj,outdir,name_mod):
 		pdb = 'temp.pdb'
 		traj.save(pdb)
 		import MDAnalysis as mda
@@ -29,7 +29,8 @@ class polymer:
 		
 		p = polymer.PersistenceLength([sel]).run()
 		p.perform_fit()
-		print "Persistence Length =", p.lp
+		with open(outdir+'plength' + name_mod + '.txt','w') as fil:
+			fil.write(str(p.lp))
 		os.remove(pdb)
 
 		return None
@@ -139,16 +140,26 @@ class polymer:
 		nframes, npep = np.array(self.flory).shape
 		N = np.log(np.asarray(range(5,nres-5)).ravel())
 		rg = np.log(np.sum(self.flory,axis=0)/nframes)
-	
-		plt.clf()
-		plt.plot(N,rg,color='b')
-		popt, pcov = curve_fit(f, N, rg)
-		print popt
-	
+
 		err = np.zeros(len(N)) 
 		for i in range(len(N)):
-			err[i] = np.std(rg[i])
-		plt.errorbar(N, rg,yerr=err/(np.sqrt(nframes)-1), fmt='o',color='b')
+			err[i] = np.std(self.flory[i])/(np.sqrt(len(self.flory[i])))
+		#	try:
+		#		err[i] = np.std(self.flory[i])/(np.sqrt(len(self.flory[i])))
+		#	except:
+		#		import pdb ; pdb.set_trace()
+		#try:
+		#	plt.errorbar(N, rg,yerr=err, fmt='o',color='b')
+		#	print('Seeeeeeeeeeeeeeeeeems ok?')
+		#except:
+		#	print('PLOTTING ERROR')
+		#	import pdb ; pdb.set_trace()
+		plt.clf()
+		plt.errorbar(N, rg,yerr=err, fmt='o',color='b')
+	
+		plt.plot(N,rg,color='b')
+		popt, pcov = curve_fit(f, N, rg, sigma=err)
+		#print popt
 	
 		plt.plot(N, f(N, *popt), 'r-')
 		plt.xlabel('log(N)')

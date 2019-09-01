@@ -6,8 +6,6 @@ file_ext = '_raw.npy'
 class data_manager:
 
 	def __init__(self,sa_dict):
-		#for key in sa_dict:
-		#	print key, sa_dict[key]
 		self.__dict__.update((key, sa_dict[key]) for key in sa_dict)
 
 	def load_data(self):
@@ -17,11 +15,15 @@ class data_manager:
 		"""
 		#---Load data
 		for c in ['Rg', 'EED', 'Asph', 'SASA', 'cmaps', 'gcmaps', 'rama', 'MASA', 'diffusion', 'flory', 'rmsd',\
-				'membrane_contacts','av_heights','interdigitation']:
-			if (c in self.calcs or c in self.precalcs_list) and os.path.isfile(self.outdir+c+self.name_mod+file_ext):
+				'membrane_contacts','av_heights','av_interdigitation']:
+			if c in self.calcs_master and os.path.isfile(self.outdir+c+self.name_mod+file_ext):
 				print 'loading data for', c, self.outdir+c+self.name_mod+file_ext
 				self.__dict__[c] = np.loadtxt(self.outdir+c+self.name_mod+file_ext)
 				self.calcs = self.calcs[np.where(self.calcs != c)]
+				self.traj_list = self.traj_list[np.where(self.traj_list != c)]
+
+		if 'membrane_contacts' in self.calcs_master and os.path.isfile(self.outdir+'contact_frames'+self.name_mod+file_ext):
+			self.contact_frames = np.loadtxt(self.outdir+'contact_frames'+self.name_mod+file_ext)
 
 		#---There's no point in just computing the Gyration Tensor
 		if 'Gyr' in self.calcs and ('Rg' not in self.calcs and 'Asph' not in self.calcs):
@@ -62,9 +64,16 @@ class data_manager:
 
 		"""
 		for c in ['Rg', 'EED', 'Asph', 'SASA', 'rama', 'diffusion', 'flory', 'rmsd', 'membrane_contacts',\
-				'area_per_lipid','av_heights','interdigitation']:
-			if c in self.calcs or c in self.precalcs_list:
+				'area_per_lipid','av_heights','av_interdigitation']:
+			if c in self.calcs_master:
 				print "Writing data for", c, ":", self.outdir+c+self.name_mod+file_ext
-				np.savetxt(self.outdir+c+self.name_mod+file_ext,self.__dict__[c])
+				try:
+					np.savetxt(self.outdir+c+self.name_mod+file_ext,self.__dict__[c])
+				except:
+					import ipdb; ipdb.set_trace()
+		if 'membrane_contacts' in self.calcs_master:
+			np.savetxt(self.outdir+'contact_frames'+self.name_mod+file_ext,self.contact_frames)
+		#if 'interdigitation' in self.calcs_master:
+		#	np.savetxt(self.outdir+c+self.name_mod+file_ext,self.__dict__['av_di'])
 		return None
 

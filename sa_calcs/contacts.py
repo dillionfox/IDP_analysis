@@ -23,7 +23,7 @@ class contacts:
 
 	"""
 
-	def __init__(self,outdir,name_mod,sel1="protein",sel2="resname DMPC",cutoff=0.3):
+	def __init__(self,outdir,name_mod,sel1="protein",sel2="resname DMPC",cutoff=0.32):
 		self.sel1 = sel1
 		self.sel2 = sel2
 		self.cutoff = cutoff
@@ -33,7 +33,7 @@ class contacts:
 		self.first_contact = -1
 
 	def contacts_precalcs(self,struc):
-		self.indlist, self.reslist, self.rnlist = self.get_residues(struc)
+		self.indlist, self.reslist, self.rnlist = self.get_residues(struc,"protein")
 		a,b,c=self.get_residues(struc,"name CA")
 		self.aaseq = [three_to_one[r] for r in c]
 		self.sel1_ind = struc.topology.select(self.sel1)
@@ -119,7 +119,10 @@ class contacts:
 		return None
 
 	def plot_contact_hist(self,outdir,name_mod):
-		self.contact_history(outdir,name_mod)
+		try:
+			self.contact_history(outdir,name_mod)
+		except:
+			print "can't load contact history"
 		self.hist_restype(outdir,name_mod)
 		plt.clf()
 		plt.hist(self.membrane_contacts,bins=range(2,self.N+2),edgecolor='black',align='left')

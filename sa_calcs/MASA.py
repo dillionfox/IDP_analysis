@@ -92,7 +92,7 @@ class MASA:
 		return d
 
 	@staticmethod
-	def get_residues(struc,sel):
+	def MASA_get_residues(struc,sel):
 		"""
 		Get residues from MDTraj object
 
@@ -139,7 +139,7 @@ class MASA:
 		"""
 		struc = traj[0] ; it = 1
 		sel = "resname DMPC and not type H"
-		lipid_ind,lipid_res,lipid_resname = self.get_residues(struc,sel)
+		lipid_ind,lipid_res,lipid_resname = self.MASA_get_residues(struc,sel)
 		lipids = traj.atom_slice(lipid_ind)
 
 		self.r_i = []
@@ -163,7 +163,7 @@ class MASA:
 		start = timer()
 
 		sel = "resname DMPC and not type H"
-		lipid_ind,lipid_res,lipid_resname = self.get_residues(struc,sel)
+		lipid_ind,lipid_res,lipid_resname = self.MASA_get_residues(struc,sel)
 		lipids = struc.atom_slice(lipid_ind)
 		lipid_ind = [_ for _ in lipid_ind]
 		lipid_res = [_ for _ in lipid_res]
@@ -223,7 +223,7 @@ class MASA:
 		pbc = np.array(struc.unitcell_lengths)[0]
 		surface = []
 		prot_pts = []
-		indlist, reslist, rnlist = self.get_residues(struc,sel1)
+		indlist, reslist, rnlist = self.MASA_get_residues(struc,sel1)
 	
 		# make selections
 		sel1_ind = struc.topology.select(sel1) ; sel2_ind = struc.topology.select(sel2)

@@ -13,6 +13,7 @@ class calc_manager(calc_lists):
 		self.outdir = outdir		# directory to write output to
 		self.name_mod = name_mod	# several functions are reused, so this name differentiates them
 		self.calcs = np.array(calcs)	# list of calculations to perform at run time
+		self.calcs_master = np.array(calcs)
 		self.analysis = []		# list of post-processing functions to be run
 		self.traj_list = np.array([])	# list of calcs that require whole trajectory
 		self.precalcs_list = np.array([])# list of calculations that run before looping through frames
@@ -42,9 +43,8 @@ class calc_manager(calc_lists):
 				self.calcs = self.calcs[np.where(self.calcs != c)]
 			if c in self.precalcs_master_list:
 				self.precalcs_list = np.append(self.precalcs_list,c)
-		analysis_only = ['chain']
 		for c in self.calcs:
-			if c in analysis_only:
+			if c in self.analysis_only_list:
 				self.calcs = self.calcs[np.where(self.calcs != c)]
 		return None
 

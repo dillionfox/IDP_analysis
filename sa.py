@@ -51,7 +51,7 @@ class SA(sa_prot,sa_traj,sa_mem,calc_manager,data_manager):
 		if self.protein_analysis:
 			prot = struc.atom_slice(struc.topology.select('protein'))[0]
 			self.protein_calcs(prot,self.calcs)
-		self.diffusion(traj,self.calcs)
+		self.diffusion(traj,fr,self.calcs)
 		self.membrane_calcs(struc,fr,self.calcs)
 		return None
 
@@ -61,6 +61,7 @@ class SA(sa_prot,sa_traj,sa_mem,calc_manager,data_manager):
 
 		"""
 		self.protein_traj_calcs(traj,self.traj_list)
+		self.mem_traj_calcs(traj,self.traj_list)
 		self.electrostatic_maps(traj,self.traj_list)
 		return None
 
@@ -98,7 +99,7 @@ class SA(sa_prot,sa_traj,sa_mem,calc_manager,data_manager):
 		#---Print log of tasks left to complete
 		print "calculations left to do:", self.calcs,self.traj_list
 		#---Decide if it's necessary to load trajectories/PDBs
-		if len(self.calcs) == 0 and len(self.traj_list) == 0: LOAD = False
+		if len(self.calcs) == 0 and len(self.traj_list) == 0 and len(self.precalcs_list) == 0: LOAD = False
 		else: LOAD = True
 		#---Run the code
 		if self.mode == 'default' and not self.plot_only and LOAD == True:
@@ -115,12 +116,12 @@ class SA(sa_prot,sa_traj,sa_mem,calc_manager,data_manager):
 					nlines = sum(1 for line in t)
 				self.struc_info(md.load(self.top),nlines)
 				traj = open(self.trajname)
-			#---Pre-calculate some things to avoid computing multiple times
-			if traj_ext != 'txt' and len(self.precalcs_list) > 0:
-				self.precalcs(traj)
 			#---Only load the necessary frames
 			if self.last_frame != -1: traj = traj[self.first_frame:self.last_frame]
 			if self.skip_frames != 1: traj = traj[::self.skip_frames]
+			#---Pre-calculate some things to avoid computing multiple times
+			if traj_ext != 'txt' and len(self.precalcs_list) > 0:
+				self.precalcs(traj)
 			#---Calculations done on trajectory all at once
 			if len(self.traj_list) > 0: self.traj_calcs(traj)
 			#---Frame-by-frame calculations

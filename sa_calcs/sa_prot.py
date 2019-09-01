@@ -33,7 +33,7 @@ class sa_prot(prot_geo,polymer,rama,pca):
 
 	def protein_traj_calcs(self,traj,calcs):
 		if 'persistence_length' in calcs:
-			self.persistence_length(traj)
+			self.persistence_length(traj,self.outdir,self.name_mod)
 		if 'rmsd' in self.calcs:
 			self.RMSD(traj)
 		if 'calibur' in self.calcs:

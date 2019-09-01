@@ -7,12 +7,14 @@ class calc_lists:
 
 	def __init__(self):
 	#---Every known calculation
-		self.known_calcs = ['Rg', 'SASA', 'EED', 'Asph', 'rama', 'cmaps', 'PCA', 'gcmaps',\
-				'XRg','SS', 'chain', 'score','flory', 'centroids', 'Gyr', \
-				'surface_contacts', 'rmsd', 'probe', 'MASA', 'calibur', \
-				'diffusion', 'contact_types', 'contact_residues', 'membrane_contacts',\
-				'area_per_lipid','persistence_length','membrane_analysis','av_heights',\
-				'interdigitation','emaps']
+		self.known_calcs = ['Rg','SASA','EED','Asph','rama','cmaps','PCA','gcmaps',\
+				'XRg','SS','chain','score','flory','centroids','Gyr', \
+				'surface_contacts','rmsd','probe','MASA','calibur', \
+				'diffusion','contact_types','contact_residues','membrane_contacts',\
+				'area_per_lipid','persistence_length','membrane_analysis',\
+				'av_heights','interdigitation','emaps','lipid_diffusion',\
+				'thickness','av_interdigitation',\
+				]
 
 		#---Calculations that depend on each other
 		self.deps = {'Rg':['Gyr'], 'Asph':['Gyr'], 'surface_contacts':['SASA'],\
@@ -24,10 +26,13 @@ class calc_lists:
 		self.post_analysis = ['Rg', 'cmaps', 'gcmaps', 'surface_contacts', 'SS' , 'PCA',\
 				'flory', 'chain', 'centroids', 'rama', 'MASA', 'diffusion',\
 				 'contact_residues', 'contact_types', 'membrane_contacts',\
-				'membrane_analysis','av_heights']
+				'membrane_analysis','av_heights','interdigitation','lipid_diffusion',\
+				'thickness','av_interdigitation']
 
 		self.traj_master_list = ['rmsd','calibur','probe','persistence_length','membrane_analysis',\
-				'interdigitation','emaps']
+				'av_interdigitation','emaps','lipid_diffusion','bending_modulus']
 
-		self.precalcs_master_list = ['membrane_contacts','membrane_analysis','av_heights','area_per_lipid',\
-				'interdigitation']
+		self.precalcs_master_list = ['membrane_contacts','av_heights','area_per_lipid',\
+				'thickness','interdigitation']
+
+		self.analysis_only_list = ['chain']

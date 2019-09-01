@@ -79,7 +79,7 @@ class prot_geo:
 		plt.hist(self.Rg,bins = np.linspace(0.6,2.6,20), edgecolor='k', align='left')
 		plt.xlabel('Rg [nm]')
 		plt.ylabel('# Occurrences')
-		plt.ylim([0,140])
+		plt.ylim([0,250])
 		plt.subplots_adjust(left=0.13, right=0.9, top=0.9, bottom=0.13)
 		plt.savefig(outdir+'Rg' + name_mod + '.png')
 		return None
